@@ -2,10 +2,6 @@
 This script parses docking score results of the new format
 (github.com/2019-ncovgroup/HTDockingDataInstructions) and
 merges the results of each target with modred descriptors.
-
-Note! Since we merge on smiles, the smiles in both the descriptors
-and docking scores need to be canonicalized which ~40 minutes for
-300K smiles. 
 """
 import warnings
 warnings.filterwarnings('ignore')
@@ -44,7 +40,7 @@ def parse_args(args):
     parser = argparse.ArgumentParser(description='Merge drug features (modred descriptors) and docking scores.')
     parser.add_argument('-sp', '--scores_path', default=str(SCORES_PATH), type=str,
                         help='Path to the docking scores resutls file (default: {SCORES_PATH}).')
-    parser.add_argument('-sp', '--desc_path', default=str(DESC_PATH), type=str,
+    parser.add_argument('--desc_path', default=str(DESC_PATH), type=str,
                         help='Path to the descriptors file (default: {DESC_PATH}).')
     parser.add_argument('-op', '--outdir', default=None, type=str,
                         help=f'Output dir (default: None).')
@@ -89,8 +85,11 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     fname = prefix + trg_name
     
     # Translate scores to positive
-    dd_trg[score_name] = np.clip(dd_trg[score_name], a_min=None, a_max=1)
-    dd_trg[score_name] = dd_trg[score_name] * (-1) + 1
+    ## dd_trg[score_name] = np.clip(dd_trg[score_name], a_min=None, a_max=1)
+    ## dd_trg[score_name] = dd_trg[score_name] * (-1) + 1
+    dd_trg[score_name] = np.clip(dd_trg[score_name], a_min=None, a_max=0)
+    dd_trg[score_name] = dd_trg[score_name] * (-1)
+    dd_trg[score_name] = np.clip(dd_trg[score_name], a_min=0, a_max=None)
     res['min'] = dd_trg[score_name].min()
     res['max'] = dd_trg[score_name].max()
     bins = 50
@@ -149,6 +148,7 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
 
 def run(args):
     scores_path = Path( args['scores_path'] ).resolve()
+    desc_path = Path( args['desc_path'] ).resolve()
     par_jobs = int( args['par_jobs'] )
     assert par_jobs > 0, f"The arg 'par_jobs' must be at least 1 (got {par_jobs})"
 
@@ -215,7 +215,7 @@ def run(args):
         # https://joblib.readthedocs.io/en/latest/parallel.html
         results = Parallel(n_jobs=par_jobs, verbose=1)(
                 delayed(gen_ml_df)(trg_name=trg, **kwargs) for trg in rsp.columns[1:].tolist() )
-        # with Pool(processes=4) as p:
+        # with Pool(processes=par_jobs) as p:
         #     results = [p.apply(gen_ml_df, args=(trg_name=trg_name, **kwargs)) for trg_name in rsp.columns[1:].tolist()[:4]]
     else:
         results = []
