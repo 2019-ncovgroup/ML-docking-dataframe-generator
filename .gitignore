@@ -1,6 +1,8 @@
 .*
 !.gitignore
 *__*
+src/clean_desc_large.py
+src/clean_desc_old.py
 data/raw/*.desc
 data/raw/raw_data/*
 data/processed/

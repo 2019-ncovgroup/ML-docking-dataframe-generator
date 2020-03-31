@@ -44,6 +44,8 @@ def parse_args(args):
     parser = argparse.ArgumentParser(description='Merge drug features (modred descriptors) and docking scores.')
     parser.add_argument('-sp', '--scores_path', default=str(SCORES_PATH), type=str,
                         help='Path to the docking scores resutls file (default: {SCORES_PATH}).')
+    parser.add_argument('-sp', '--desc_path', default=str(DESC_PATH), type=str,
+                        help='Path to the descriptors file (default: {DESC_PATH}).')
     parser.add_argument('-op', '--outdir', default=None, type=str,
                         help=f'Output dir (default: None).')
     parser.add_argument('--q_bins', default=[ 0.025 ], type=float, nargs='+',
@@ -167,7 +169,7 @@ def run(args):
     
     print_fn('\nPython filepath  {}'.format( filepath ))
     print_fn('Scores data path {}'.format( scores_path ))
-    print_fn('Descriptors path {}'.format( DESC_PATH ))
+    print_fn('Descriptors path {}'.format( desc_path ))
     print_fn('Outdir data path {}'.format( outdir ))
 
     # -----------------------------------------
