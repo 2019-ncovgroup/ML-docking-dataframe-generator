@@ -1,0 +1,6 @@
+.*
+!.gitignore
+*__*
+data/raw/*.desc
+data/raw/raw_data/*
+data/processed/
