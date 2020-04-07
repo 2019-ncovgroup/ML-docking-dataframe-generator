@@ -20,20 +20,24 @@ import pandas as pd
 filepath = Path(__file__).resolve().parent
 
 # Utils
-from utils.classlogger import Logger
-from utils.utils import load_data, drop_dup_rows, dropna
+sys.path.append( os.path.abspath(filepath/'../utils') )
+# from utils.classlogger import Logger
+# from utils.utils import load_data, drop_dup_rows, dropna
+from classlogger import Logger
+from utils import load_data, drop_dup_rows, dropna
 
 
 datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw')
-outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors')
+# outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors')
+outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena+db')
 os.makedirs(outdir, exist_ok=True)
 
 
 t0 = time()
-lg = Logger(outdir/'clean.desc.log')
+lg = Logger( outdir/'clean.desc.log' )
 print_fn = lg.logger.info
 
-print_fn('\nPython filepath    {}'.format( filepath ))
+print_fn('\nPython filepath   {}'.format( filepath ))
 print_fn('Original data dir {}'.format( datadir ))
 print_fn('Output data dir   {}'.format( outdir ))
 
@@ -99,7 +103,7 @@ dsc.columns = ['name'] + ['mod.'+c for c in dsc.columns[1:]]
 
 # Save
 print_fn('\nSave ...')
-print_fn(dsc.shape)
+print_fn( dsc.shape )
 dsc = dsc.reset_index(drop=True)
 dsc.to_parquet( str(out_fpath) + '.parquet' )
 

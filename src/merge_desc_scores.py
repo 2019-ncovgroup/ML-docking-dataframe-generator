@@ -29,7 +29,13 @@ filepath = Path(__file__).resolve().parent
 from utils.classlogger import Logger
 from utils.utils import load_data, get_print_func, drop_dup_rows
 
-DESC_PATH = filepath / '../data/processed/descriptors/smi.desc.parquet'
+
+DESC_PATH = filepath / '../data/processed/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
+meta_cols = ['name', 'smiles']  # for ena+db
+
+# DESC_PATH = filepath / '../data/processed/descriptors/UC-molecules/UC.smi.desc.parquet' # UC-molecules
+# meta_cols = ['smiles']  # for UC-molecules
+
 SCORES_MAIN_PATH = filepath / '../data/processed'
 
 # 03/30/2020
@@ -42,13 +48,13 @@ def parse_args(args):
                         help='Path to the docking scores resutls file (default: {SCORES_PATH}).')
     parser.add_argument('--desc_path', default=str(DESC_PATH), type=str,
                         help='Path to the descriptors file (default: {DESC_PATH}).')
-    parser.add_argument('-op', '--outdir', default=None, type=str,
+    parser.add_argument('-od', '--outdir', default=None, type=str,
                         help=f'Output dir (default: None).')
     parser.add_argument('--q_bins', default=[ 0.025 ], type=float, nargs='+',
                         help=f'Quantiles to bin the dock score (default: 0.025).')
     parser.add_argument('--par_jobs', default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
-    args, other_args = parser.parse_known_args(args)
+    args, other_args = parser.parse_known_args( args )
     return args
 
 
@@ -162,8 +168,8 @@ def run(args):
     args['outdir'] = outdir
     
     # Logger
-    lg = Logger(outdir/'create.ml.data.log')
-    print_fn = get_print_func(lg.logger)
+    lg = Logger( outdir/'create.ml.data.log' )
+    print_fn = get_print_func( lg.logger )
     print_fn(f'File path: {filepath}')
     print_fn(f'\n{pformat(args)}')
     
@@ -204,7 +210,8 @@ def run(args):
     print_fn('Unique smiles in final df: {}'.format( dd['smiles'].nunique() ))
 
     score_name = 'reg'
-    meta_cols = ['name', 'smiles']
+    ## meta_cols = ['name', 'smiles']  # for ena+db
+    ## meta_cols = ['smiles']  # for UC-molecules
     bin_th = 2.0
     kwargs = { 'dd': dd, 'meta_cols': meta_cols, 'score_name': score_name,
                'q_cls': args['q_bins'][0], 'bin_th': bin_th, 'print_fn': print_fn,

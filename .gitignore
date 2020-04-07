@@ -5,4 +5,5 @@ src/clean_desc_large.py
 src/clean_desc_old.py
 data/raw/*.desc
 data/raw/raw_data/*
+data/raw/UC-molecules/
 data/processed/
