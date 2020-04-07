@@ -20,23 +20,21 @@ import pandas as pd
 filepath = Path(__file__).resolve().parent
 
 # Utils
-sys.path.append( os.path.abspath(filepath/'../utils') )
-# from utils.classlogger import Logger
-# from utils.utils import load_data, drop_dup_rows, dropna
-from classlogger import Logger
-from utils import load_data, drop_dup_rows, dropna
+from utils.classlogger import Logger
+from utils.utils import load_data, drop_dup_rows, dropna
 
-datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw/ena+db')
+
+datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw')
 # outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors')
-outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena+db')
+outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena_db')
 os.makedirs(outdir, exist_ok=True)
 
 
 t0 = time()
-lg = Logger( outdir/'clean.desc.log' )
+lg = Logger(outdir/'clean.desc.log')
 print_fn = lg.logger.info
 
-print_fn('\nPython filepath   {}'.format( filepath ))
+print_fn('\nPython filepath    {}'.format( filepath ))
 print_fn('Original data dir {}'.format( datadir ))
 print_fn('Output data dir   {}'.format( outdir ))
 

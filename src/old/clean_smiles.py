@@ -14,23 +14,23 @@ import pandas as pd
 filepath = Path(__file__).resolve().parent
 
 # Utils
-sys.path.append( os.path.abspath(filepath/'../utils') )
+sys.path.append( filepath/'../utils' )
 # from utils.classlogger import Logger
 # from utils.smiles import canon_single_smile, canon_df
 from classlogger import Logger
 from smiles import canon_single_smile, canon_df
 
-datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw/ena+db)
+datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw')
 # outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors')
-outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena+db')
+outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena_db')
 os.makedirs(outdir, exist_ok=True)
 
 
 t0 = time()
-lg = Logger( outdir/'clean.smiles.log' )
+lg = Logger(outdir/'clean.smiles.log')
 print_fn = lg.logger.info
 
-print_fn('\nPython filepath   {}'.format( filepath ))
+print_fn('\nPython filepath    {}'.format( filepath ))
 print_fn('Original data dir {}'.format( datadir ))
 print_fn('Output data dir   {}'.format( outdir ))
 
@@ -49,18 +49,20 @@ print_fn( smi.shape )
 print_fn('Total duplicates (do not remove): {}'.format( sum(smi.duplicated()) ))
 
 # Drop duplicates (all)
-# print_fn( smi.shape )
+# cnt0 = smi.shape[0]; print('\nCount: ', cnt0)
 # smi = smi.drop_duplicates().reset_index(drop=True)
-# print_fn( smi.shape )
+# cnt1 = smi.shape[0]; print('Count: ', cnt1); print('Dropped duplicates: ', cnt0-cnt1)
 
 # Drop duplicates (consider only smiles)
-# print_fn( smi.shape )
+# cnt0 = smi.shape[0]; print('\nCount: ', cnt0)
 # smi = smi.drop_duplicates(subset=['smiles']).reset_index(drop=True)
-# print_fn( smi.shape )
+# cnt1 = smi.shape[0]; print('Count: ', cnt1); print('Dropped duplicates: ', cnt0-cnt1)
 
 # Canonicalize
 print_fn('\nCanonicalize ...')
+# smi_vec = smi[['smiles']].copy()
 smi_can = canon_df(smi, smi_name='smiles')
+# smi['smiles'] = smi_vec
 
 smi_can = smi_can[ ~smi_can['smiles'].isna() ] # keep good smiles
 smi_can = smi_can.reset_index( drop=True )
