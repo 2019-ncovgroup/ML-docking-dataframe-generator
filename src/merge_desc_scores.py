@@ -29,7 +29,7 @@ filepath = Path(__file__).resolve().parent
 from utils.classlogger import Logger
 from utils.utils import load_data, get_print_func, drop_dup_rows
 
-
+# ENA+DB 300K
 DESC_PATH = filepath / '../data/processed/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
 meta_cols = ['name', 'smiles']  # for ena+db
 
@@ -39,7 +39,10 @@ meta_cols = ['name', 'smiles']  # for ena+db
 SCORES_MAIN_PATH = filepath / '../data/processed'
 
 # 03/30/2020
-SCORES_PATH = SCORES_MAIN_PATH / 'docking_data_march_30/docking_data_out_v2.0.can.parquet'
+# SCORES_PATH = SCORES_MAIN_PATH / 'docking_data_march_30/docking_data_out_v2.0.can.parquet'
+
+# 04/09/2020
+# SCORES_PATH = SCORES_MAIN_PATH / 'V3_docking_data_april_9/docking_data_out_v3.1.can.parquet'
 
 
 def parse_args(args):
@@ -159,7 +162,7 @@ def run(args):
     assert par_jobs > 0, f"The arg 'par_jobs' must be at least 1 (got {par_jobs})"
 
     if args['outdir'] is not None:
-        outdir = Path( args['outdir'] )
+        outdir = Path( args['outdir'] ).resolve()
     else:
         outdir = scores_path.parent
     outfigs = outdir/'figs'

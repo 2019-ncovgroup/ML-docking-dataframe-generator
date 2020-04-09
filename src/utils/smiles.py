@@ -1,6 +1,7 @@
 from time import time
 import numpy as np
 
+
 def canon_single_smile(smi):
     """ ... """
     from rdkit import Chem
