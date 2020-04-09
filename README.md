@@ -1,6 +1,30 @@
 # Pipeline to generate ML dataframes for predicting docking scores.
 
-The main script `src/merge_desc_and_scores.py` parses raw docking scores, merges with modred descriptors, and dumps ML dataframes for every receptor/target available in a docking results file. The scores and descriptors are merged on the canonical (drug) SMILES. ML files follow the same naming convention: `ml.<target_name>.csv` (e.g., `ml.ADRP_pocket1_dock.csv`).
+## Getting started
+Clone the repo.
+```shell
+$ git clone https://github.com/2019-ncovgroup/ML-docking-dataframe-generator
+```
+
+Inside the main project, create dir for raw docking scores.
+```shell
+$ cd ML-docking-dataframe-generator
+$ mkdir data/raw/raw_data
+```
+
+Copy a batch of docking score results from Box or Petrel. E.g., 2019-nCoV/drug-screening/raw_data/V3_docking_data_april_9.
+Run script to canoncalize the SMILES. This will dump the updated scores into `./data/processed/V3_docking_data_april_9`.
+```shell
+$ python canon_smiles.py --datapath data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv
+```
+
+## Now genearte the ML dataframes.
+The main script `src/merge_desc_and_scores.py` loads the canonicalized docking scores, merges with Mordred descriptors, and then parses the data to generate an ML dataframe for every receptor/target available in a docking results file. The scores and descriptors are merged on the canonical SMILES. The resulting ML data files follow the same naming convention: `ml.<target_name>.csv` (e.g., `ml.ADRP_pocket1_dock.csv`).
+
+```
+$ python src/merge_desc_scores.py --scores_path ./data/processed/V3_docking_data_april_9/docking_data_out_v3.1.can.csv --desc_path ./data/processed/descriptors/ena+db/ena+db.smi.desc.parquet --par_jobs 16
+```
+The `par_jobs` argument uses the `joblib` python package to parallelize the processing.
 
 A subset of `ml.ADRP_pocket1_dock.csv` from March 30th:
 <img src="figs/ML-df-example.png" alt="drawing" height="200"/>
@@ -21,27 +45,16 @@ Certain targets exhibits a large number of non-docking drugs as shown for `PLPro
 - `smiles`: canonical SMILES string
 
 ## Docking Scores
-Raw docking scores from MD simulations are stored in Box `2019-nCoV/drug_screening/raw_data/`. Every new batch of simulation results is dumped into `2019-nCoV/drug_screening/raw_data/docking_data_<month>_<day>` (e.g., `2019-nCoV/drug_screening/raw_data/docking_data_march_30`).
-Each batch is structured with drug SMILES in the first column and receptors/targets in the subsequent columns. The values are the docking scores. For more info refer https://github.com/2019-ncovgroup/HTDockingDataInstructions.
+Raw docking scores from MD simulations are stored in Box `2019-nCoV/drug-screening/raw_data/`. Every new batch of simulation results is dumped into `2019-nCoV/drug-screening/raw_data/*docking_data_<month>_<day>` (e.g., `2019-nCoV/drug-screening/raw_data/V3_docking_data_april_9`).
+Each batch is structured with drug SMILES in the first column and receptors/targets in the subsequent columns. The values are the docking scores. For more info refer to https://github.com/2019-ncovgroup/HTDockingDataInstructions.
 
 <img src="figs/docking-results-example.png" alt="drawing" height="200"/>
 
-## Generating ML dataframes
-To start generating ML dataframes you need to data files:
-- Docking scores (`2019-nCoV/drug_screening/raw_data/docking_data_<month>_<day>`)
-- Descriptors (`2019-nCoV/drug_screening/descriptors/ena+db.desc.parquet`)
-
-Launch `src/merge_desc_scores.py` to generate dataframes:
-```shell script
-$ python src/merge_desc_scores.py --scores_path data/raw/raw_data/docking_data_march_30/docking_data_out_v2.0.can.parquet --scores_path data/processed/descriptors/smi.desc.parquet --par_jobs 16
-```
-Note that `par_jobs` argument uses the `joblib` python package to parallelize the processing.
-
 ## Descriptors
-The original modred descriptors are stored in Box `2019-nCoV/drug_screening/ena+db.desc.gz`. This file requires some pre-processing (duplicates, bad rows, NaNs, casting). This needs to be done only once. The clean version of descriptors can be found in Box `2019-nCoV/drug_screening/descriptors/ena+db.desc.parquet`. If you need to generate the descriptors from the original, follow the steps below.
+The original Mordred descriptors are stored in Box `2019-nCoV/drug-screening/ena+db.desc.gz`. This file required some pre-processing (duplicates, bad rows, NaNs, casting). This needs to be done only once. The clean version of the descriptors (Enamine + DrugBank; 300K SMILES) can be found in Box `2019-nCoV/drug-screening/descriptors/ena+db/ena+db.smi.desc.parquet`. If you need to generate the descriptors from the original file, follow the steps below.
 
-- Clean and canonicalize smiles `ena+db.smi` using `src/clean_smiles.py` (updated file is in `2019-nCoV/drug_screening/descriptors/ena+db.smi.can`)
-- Clean descriptors `ena+db.desc` using `src/clean_desc.py` (updated file is in `2019-nCoV/drug_screening/descriptors/ena+db.desc.parquet`)
-- Merge smiles and descriptors using `src/merge_smi_desc.py` (updated file is in `2019-nCoV/drug_screening/descriptors/smi.desc.parquet`)
+- Clean and canonicalize smiles `ena+db.smi` using `src/ena+db/clean_smiles.py` (updated file is in `2019-nCoV/drug_screening/descriptors/ena+db/ena+db.smi.can.csv`)
+- Clean descriptors `ena+db.desc` using `src/ena+db/clean_desc.py` (updated file is in `2019-nCoV/drug_screening/descriptors/ena+db/ena+db.desc.parquet`)
+- Merge smiles and descriptors using `src/ena+db/merge_smi_desc.py` (updated file is in `2019-nCoV/drug_screening/descriptors/ena+db/ena+db.smi.desc.parquet`)
 
 <img src="figs/smi-desc-df.png" alt="drawing" height="220"/>
