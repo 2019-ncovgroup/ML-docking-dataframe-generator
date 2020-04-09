@@ -1,4 +1,4 @@
-# Pipeline to generate ML dataframes for predicting docking scores.
+This is a pipeline that generate ML dataframes for predicting docking scores from Mordred descriptors.
 
 ## Getting started
 Clone the repo.
@@ -18,7 +18,7 @@ Run script to canoncalize the SMILES. This will dump the updated scores into `./
 $ python canon_smiles.py --datapath data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv
 ```
 
-## Now genearte the ML dataframes.
+## Now genearte the ML dataframes
 The main script `src/merge_desc_and_scores.py` loads the canonicalized docking scores, merges with Mordred descriptors, and then parses the data to generate an ML dataframe for every receptor/target available in a docking results file. The scores and descriptors are merged on the canonical SMILES. The resulting ML data files follow the same naming convention: `ml.<target_name>.csv` (e.g., `ml.ADRP_pocket1_dock.csv`).
 
 ```
