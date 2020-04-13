@@ -1,7 +1,8 @@
 """
-This script parses docking score results of the new format
-(github.com/2019-ncovgroup/HTDockingDataInstructions) and
-merges the results of each target with modred descriptors.
+This script parses docking score results and merges the
+results of each target with modred descriptors.
+Refer to this repo for into on docking results.
+(github.com/2019-ncovgroup/HTDockingDataInstructions)
 """
 import warnings
 warnings.filterwarnings('ignore')
