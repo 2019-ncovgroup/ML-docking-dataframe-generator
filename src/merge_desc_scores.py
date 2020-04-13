@@ -31,7 +31,7 @@ from utils.classlogger import Logger
 from utils.utils import load_data, get_print_func, drop_dup_rows
 
 # ENA+DB 300K
-DESC_PATH = filepath / '../data/processed/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
+DESC_PATH = filepath/'../data/processed/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
 meta_cols = ['name', 'smiles']  # for ena+db
 
 # DESC_PATH = filepath / '../data/processed/descriptors/UC-molecules/UC.smi.desc.parquet' # UC-molecules
