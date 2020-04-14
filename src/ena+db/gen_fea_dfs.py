@@ -59,7 +59,7 @@ def run(args):
     print_fn( f'File path: {filepath}' )
     print_fn( f'\n{pformat(args)}' )
 
-    print_fn('\nPython filepath  {}'.format( filepath ))
+    print_fn('\nPython filepath {}'.format( filepath ))
     print_fn('Input data dir  {}'.format( datadir ))
     print_fn('Output data dir {}'.format( outdir ))
 
@@ -69,6 +69,8 @@ def run(args):
     dsc = load_data( args['desc_path'] )
     print_fn('smi {}'.format( smi.shape ))
     print_fn('dsc {}'.format( dsc.shape ))
+
+    # ecfp2_df = smiles_to_fps(smi[['smiles']], radius=2**0.5, smi_name='smiles')
 
     # Remove duplicates
     print_fn('\nDrop duplicates from smiles and descriptors ...')
@@ -98,26 +100,30 @@ def run(args):
 
     # Now generate fingerprints
     smi_vec = smi_dsc[['smiles']].copy()
-    ecfp2_df = smiles_to_fps(smi_vec, radius=2**0.5, smi_name='smiles')
-    ecfp4_df = smiles_to_fps(smi_vec, radius=4**0.5, smi_name='smiles')
-    ecfp6_df = smiles_to_fps(smi_vec, radius=6**0.5, smi_name='smiles')
+    ecfp2 = smiles_to_fps(smi_vec, radius=1, smi_name='smiles', n_jobs=64)
+    ecfp4 = smiles_to_fps(smi_vec, radius=2, smi_name='smiles', n_jobs=64)
+    ecfp6 = smiles_to_fps(smi_vec, radius=3, smi_name='smiles', n_jobs=64)
 
     def add_fea_prfx(df, prfx:str):
-        df = df.rename(columns={prfx+str(s) for s in df.columns[1:]})
+        return df.rename(columns={s: prfx+str(s) for s in df.columns[1:]})
 
-    ecfo2_df = add_fea_prfx(ecfo2_df, prfx='ecfp2.')
-    ecfo4_df = add_fea_prfx(ecfo4_df, prfx='ecfp4.')
-    ecfo2_df = add_fea_prfx(ecfo6_df, prfx='ecfp6.')
-    # ecfo2_df = ecfp2_df.rename(columns={'ecfp2.'+str(s) for s in ecfp2_df.columns[1:]})
+    ecfp2 = add_fea_prfx(ecfp2, prfx='ecfp2.')
+    ecfp4 = add_fea_prfx(ecfp4, prfx='ecfp4.')
+    ecfp6 = add_fea_prfx(ecfp6, prfx='ecfp6.')
 
-    # print_fn('\nSave ...')
-    # ecfp2_df.to_parquet( outdir/'ena+db.smi.ecfp2.parquet' )
-    # ecfp4_df.to_parquet( outdir/'ena+db.smi.ecfp4.parquet' )
-    # ecfp6_df.to_parquet( outdir/'ena+db.smi.ecfp6.parquet' )
+    smi_dsc.set_index('smiles', inplace=True)
+    ecfp2.set_index('smiles', inplace=True)
+    ecfp4.set_index('smiles', inplace=True)
+    ecfp6.set_index('smiles', inplace=True)
+    print('here')
+
+    data = pd.concat([smi_dsc, ecfp2, ecfp4, ecfp6], axis=1)
+    del smi_dsc, ecfp2, ecfp4, ecfp6
 
     # Save
     print_fn('\nSave ...')
     # smi_dsc.to_parquet( outdir/'ena+db.smi.desc.parquet' )
+    data.to_parquet( outdir/'ena+db.features.parquet' )
 
     print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))
     print_fn('Done.')

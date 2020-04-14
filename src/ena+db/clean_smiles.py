@@ -20,9 +20,10 @@ sys.path.append( os.path.abspath(filepath/'../utils') )
 from classlogger import Logger
 from smiles import canon_single_smile, canon_df
 
-datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw/ena+db)
+datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw/ena+db')
 # outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors')
-outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena+db')
+# outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena+db')
+outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/features/ena+db')
 os.makedirs(outdir, exist_ok=True)
 
 
@@ -36,8 +37,8 @@ print_fn('Output data dir   {}'.format( outdir ))
 
 # File names
 in_fname = 'ena+db.smi'
-in_fpath  = datadir / in_fname
-out_fpath = outdir / (in_fname+'.can.csv')
+in_fpath  = datadir/in_fname
+out_fpath = outdir/(in_fname+'.can.csv')
 
 # Original non-canonical SMILES of the combined library of Enamine Diversity
 # and DrugBank. (Rick added IDs to the drugbank entries db-x).
@@ -65,10 +66,14 @@ smi_can = canon_df(smi, smi_name='smiles')
 smi_can = smi_can[ ~smi_can['smiles'].isna() ] # keep good smiles
 smi_can = smi_can.reset_index( drop=True )
 
+
+from smiles import smiles_to_fps
+ecfp2_df = smiles_to_fps(smi_can[['smiles']], radius=2**0.5, smi_name='smiles')
+
+
 # Save
 print_fn('\nSave ...')
 print_fn( smi_can.shape )
-# smi = smi.reset_index(drop=True)
 smi_can.to_csv(out_fpath, index=False)
 
 print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))

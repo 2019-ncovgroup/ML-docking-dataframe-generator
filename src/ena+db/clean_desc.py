@@ -28,7 +28,8 @@ from utils import load_data, drop_dup_rows, dropna
 
 datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw/ena+db')
 # outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors')
-outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena+db')
+# outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/descriptors/ena+db')
+outdir  = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/features/ena+db')
 os.makedirs(outdir, exist_ok=True)
 
 
@@ -42,8 +43,8 @@ print_fn('Output data dir   {}'.format( outdir ))
 
 # File names
 in_fname = 'ena+db.desc'
-in_fpath  = datadir / in_fname
-out_fpath = outdir / in_fname
+in_fpath  = datadir/in_fname
+out_fpath = outdir/in_fname
 
 # Load Modred descriptors (this descriptors are the result
 # from mordred run on ena+db.can from Rick)
