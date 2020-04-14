@@ -40,7 +40,7 @@ DESC_PATH   = str( datadir/'ena+db.desc.parquet' )
 
 
 def parse_args(args):
-    parser = argparse.ArgumentParser(description='Generate molecular feature dataframes.')
+    parser = argparse.ArgumentParser(description='Generate molecular feature dataframe.')
     parser.add_argument('--smiles_path', default=SMILES_PATH, type=str,
                         help=f'Full path to the smiles file (default: {SMILES_PATH}).')
     parser.add_argument('--desc_path', default=DESC_PATH, type=str,
@@ -70,8 +70,6 @@ def run(args):
     print_fn('smi {}'.format( smi.shape ))
     print_fn('dsc {}'.format( dsc.shape ))
 
-    # ecfp2_df = smiles_to_fps(smi[['smiles']], radius=2**0.5, smi_name='smiles')
-
     # Remove duplicates
     print_fn('\nDrop duplicates from smiles and descriptors ...')
     smi = smi.drop_duplicates().reset_index( drop=True )
@@ -98,7 +96,7 @@ def run(args):
     smi_dsc = smi_dsc.drop_duplicates(subset=cols).reset_index( drop=True )
     print_fn('Final smi_dsc {}'.format( smi_dsc.shape ))
 
-    # Now generate fingerprints
+    # Generate fingerprints
     smi_vec = smi_dsc[['smiles']].copy()
     ecfp2 = smiles_to_fps(smi_vec, radius=1, smi_name='smiles', n_jobs=64)
     ecfp4 = smiles_to_fps(smi_vec, radius=2, smi_name='smiles', n_jobs=64)
@@ -115,9 +113,8 @@ def run(args):
     ecfp2.set_index('smiles', inplace=True)
     ecfp4.set_index('smiles', inplace=True)
     ecfp6.set_index('smiles', inplace=True)
-    print('here')
 
-    data = pd.concat([smi_dsc, ecfp2, ecfp4, ecfp6], axis=1)
+    data = pd.concat([smi_dsc, ecfp2, ecfp4, ecfp6], axis=1).reset_index()
     del smi_dsc, ecfp2, ecfp4, ecfp6
 
     # Save
