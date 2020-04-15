@@ -1,7 +1,8 @@
 """
-This script parses docking score results of the new format
-(github.com/2019-ncovgroup/HTDockingDataInstructions) and
-merges the results of each target with modred descriptors.
+This script parses docking score results and merges the
+results of each target with modred descriptors.
+Refer to this repo for into on docking results.
+(github.com/2019-ncovgroup/HTDockingDataInstructions)
 """
 import warnings
 warnings.filterwarnings('ignore')
@@ -29,11 +30,20 @@ filepath = Path(__file__).resolve().parent
 from utils.classlogger import Logger
 from utils.utils import load_data, get_print_func, drop_dup_rows
 
-DESC_PATH = filepath / '../data/processed/descriptors/smi.desc.parquet'
+# ENA+DB 300K
+DESC_PATH = filepath/'../data/processed/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
+meta_cols = ['name', 'smiles']  # for ena+db
+
+# DESC_PATH = filepath / '../data/processed/descriptors/UC-molecules/UC.smi.desc.parquet' # UC-molecules
+# meta_cols = ['smiles']  # for UC-molecules
+
 SCORES_MAIN_PATH = filepath / '../data/processed'
 
 # 03/30/2020
-SCORES_PATH = SCORES_MAIN_PATH / 'docking_data_march_30/docking_data_out_v2.0.can.parquet'
+# SCORES_PATH = SCORES_MAIN_PATH / 'docking_data_march_30/docking_data_out_v2.0.can.parquet'
+
+# 04/09/2020
+# SCORES_PATH = SCORES_MAIN_PATH / 'V3_docking_data_april_9/docking_data_out_v3.1.can.parquet'
 
 
 def parse_args(args):
@@ -42,13 +52,13 @@ def parse_args(args):
                         help='Path to the docking scores resutls file (default: {SCORES_PATH}).')
     parser.add_argument('--desc_path', default=str(DESC_PATH), type=str,
                         help='Path to the descriptors file (default: {DESC_PATH}).')
-    parser.add_argument('-op', '--outdir', default=None, type=str,
+    parser.add_argument('-od', '--outdir', default=None, type=str,
                         help=f'Output dir (default: None).')
     parser.add_argument('--q_bins', default=[ 0.025 ], type=float, nargs='+',
                         help=f'Quantiles to bin the dock score (default: 0.025).')
     parser.add_argument('--par_jobs', default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
-    args, other_args = parser.parse_known_args(args)
+    args, other_args = parser.parse_known_args( args )
     return args
 
 
@@ -153,7 +163,7 @@ def run(args):
     assert par_jobs > 0, f"The arg 'par_jobs' must be at least 1 (got {par_jobs})"
 
     if args['outdir'] is not None:
-        outdir = Path( args['outdir'] )
+        outdir = Path( args['outdir'] ).resolve()
     else:
         outdir = scores_path.parent
     outfigs = outdir/'figs'
@@ -204,8 +214,8 @@ def run(args):
     print_fn('Unique smiles in final df: {}'.format( dd['smiles'].nunique() ))
 
     score_name = 'reg'
-    # meta_cols = ['name', 'smiles']
-    meta_cols = ['smiles']
+    ## meta_cols = ['name', 'smiles']  # for ena+db
+    ## meta_cols = ['smiles']  # for UC-molecules
     bin_th = 2.0
     kwargs = { 'dd': dd, 'meta_cols': meta_cols, 'score_name': score_name,
                'q_cls': args['q_bins'][0], 'bin_th': bin_th, 'print_fn': print_fn,
