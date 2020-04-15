@@ -104,9 +104,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     fname = prefix + trg_name
     
     # Translate scores to positive
-    # dd_trg[score_name] = np.clip(dd_trg[score_name], a_min=None, a_max=0)
-    # dd_trg[score_name] = dd_trg[score_name] * (-1)
-    # dd_trg[score_name] = np.clip(dd_trg[score_name], a_min=0, a_max=None)
     dd_trg[score_name] = abs( np.clip(dd_trg[score_name], a_min=None, a_max=0) )
     res['min'], res['max'] = dd_trg[score_name].min(), dd_trg[score_name].max()
     bins = 50
@@ -142,7 +139,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     # print_fn('Ratio {:.3f}'.format( dd['dock_bin'].sum() / dd.shape[0] ))
 
     # Plot
-    # print_fn( f'Plot {trg_name} ...' )
     hist, bin_edges = np.histogram(dd_trg[score_name], bins=bins)
     x = np.ones((10,)) * cls_th
     y = np.linspace(0, hist.max(), len(x))
@@ -160,7 +156,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
         """ Extract specific feature type (including metadata) and
         save to file. 
         """
-        # print_fn( f'processing {name}' )
         fea_prfx_drop = [i for i in fea_list if i!=fea]
         fea_cols_drop = extract_subset_fea_col_names(df, fea_list=fea_prfx_drop, fea_sep='.')
         data = df.drop( columns=fea_cols_drop )
@@ -170,7 +165,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
             data.to_csv( str(outpath_name)+'.csv' , index=False )
         return data
 
-    # print_fn( f'Save data {trg_name} ...' )
     to_csv = True
     extract_and_save_fea( dd_trg, fea='ecfp2', name='ecfp2', to_csv=to_csv );
     extract_and_save_fea( dd_trg, fea='ecfp4', name='ecfp4', to_csv=to_csv );
@@ -242,9 +236,9 @@ def run(args):
     # Merge features with dock scores
     # -----------------------------------------    
     unq_smiles = set( rsp['smiles'] ).intersection( set(fea['smiles']) )
-    print_fn( "Unique 'smiles' in rsp: {}".format( rsp['smiles'].nunique() ))
-    print_fn( "Unique 'smiles' in fea: {}".format( fea['smiles'].nunique() ))
-    print_fn( "Intersect on 'smiles':  {}".format( len(unq_smiles) ))
+    print_fn( "Unique smiles in rsp: {}".format( rsp['smiles'].nunique() ))
+    print_fn( "Unique smiles in fea: {}".format( fea['smiles'].nunique() ))
+    print_fn( "Intersect on smiles:  {}".format( len(unq_smiles) ))
 
     print_fn("\nMerge features with docking scores on 'smiles' ...")
     dd = pd.merge(rsp, fea, on='smiles', how='inner')
