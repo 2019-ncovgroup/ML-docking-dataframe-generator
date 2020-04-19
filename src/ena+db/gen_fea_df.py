@@ -98,9 +98,9 @@ def run(args):
 
     # Generate fingerprints
     smi_vec = smi_dsc[['smiles']].copy()
-    ecfp2 = smiles_to_fps(smi_vec, radius=1, smi_name='smiles', n_jobs=64)
-    ecfp4 = smiles_to_fps(smi_vec, radius=2, smi_name='smiles', n_jobs=64)
-    ecfp6 = smiles_to_fps(smi_vec, radius=3, smi_name='smiles', n_jobs=64)
+    ecfp2 = smiles_to_fps(smi_vec, radius=1, smi_name='smiles', par_jobs=64)
+    ecfp4 = smiles_to_fps(smi_vec, radius=2, smi_name='smiles', par_jobs=64)
+    ecfp6 = smiles_to_fps(smi_vec, radius=3, smi_name='smiles', par_jobs=64)
 
     def add_fea_prfx(df, prfx:str):
         return df.rename(columns={s: prfx+str(s) for s in df.columns[1:]})

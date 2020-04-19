@@ -46,7 +46,10 @@ SCORES_MAIN_PATH = filepath/'../data/processed'
 # SCORES_PATH = SCORES_MAIN_PATH / 'docking_data_march_30/docking_data_out_v2.0.can.parquet'
 
 # 04/09/2020
-SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_9/docking_data_out_v3.1.can.parquet'
+# SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_9/docking_data_out_v3.1.can.parquet'
+
+# 04/09/2020
+SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.can.parquet'
 
 
 def parse_args(args):
@@ -92,7 +95,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     dd_trg = dd[ cols ]
     del dd
 
-    # print_fn( f'Proc target col {trg_name} ...' )
     # Drop NaN scores
     dd_trg = dd_trg[ ~dd_trg[trg_name].isna() ].reset_index(drop=True)
 
@@ -165,6 +167,7 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
             data.to_csv( str(outpath_name)+'.csv' , index=False )
         return data
 
+    print_fn( f'Create and save dataframes ...' )
     to_csv = True
     extract_and_save_fea( dd_trg, fea='ecfp2', name='ecfp2', to_csv=to_csv );
     extract_and_save_fea( dd_trg, fea='ecfp4', name='ecfp4', to_csv=to_csv );
@@ -258,14 +261,13 @@ def run(args):
     t0 = time()
     if par_jobs > 1:
         # https://joblib.readthedocs.io/en/latest/parallel.html
-        results = Parallel(n_jobs=par_jobs, verbose=10)(
+        results = Parallel(n_jobs=par_jobs, verbose=20)(
                 delayed(gen_ml_df)(trg_name=trg, **kwargs) for trg in trg_names )
     else:
         results = []
         runtimes = []
         for trg in trg_names:
             t_start = time()
-            print_fn('\nProcessing {}'.format( trg ))
             res = gen_ml_df(trg_name=trg, **kwargs)
             results.append( res )
             # print_fn('Runtime {:.2f} mins'.format( (time()-t_start)/60 ))
