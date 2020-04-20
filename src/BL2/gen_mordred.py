@@ -42,8 +42,8 @@ SMILES_PATH = str( datadir/'BL2.smi' )
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description='Generate molecular feature dataframe.')
-    # parser.add_argument('--smiles_path', default=SMILES_PATH, type=str,
-    #                     help=f'Full path to the smiles file (default: {SMILES_PATH}).')
+    parser.add_argument('--smiles_path', default=SMILES_PATH, type=str,
+                        help=f'Full path to the smiles file (default: {SMILES_PATH}).')
     parser.add_argument('--par_jobs', default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
     args, other_args = parser.parse_known_args(args)
@@ -66,7 +66,6 @@ def run(args):
 
     # Load smiles and descriptors
     print_fn('\nLoad smiles ...')
-    # smi = load_data( args['smiles_path'] )
     smi = pd.read_csv( args['smiles_path'], sep='\t', names=['smiles', 'name'] )
     print_fn('smi {}'.format( smi.shape ))
 
