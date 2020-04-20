@@ -5,7 +5,7 @@ from joblib import Parallel, delayed
 
 
 def canon_single_smile(smi):
-    """ ... """
+    """ Canonicalize single SMILES string. """
     from rdkit import Chem
     try:
         # canon = Chem.MolFromSmiles(smi)
@@ -76,7 +76,8 @@ def smiles_to_fps(df, radius=2, nbits=2048, smi_name='smiles', par_jobs=16):
     return fps_df
 
 
-def mordred_single_smile(smi):
+# def mordred_single_smile(smi):
+def smile_to_mol(smi):
     """ ... """
     try:
         mol = Chem.MolFromSmiles(smi)
@@ -86,7 +87,7 @@ def mordred_single_smile(smi):
     return mol
 
 
-def smiles_to_mordred(df, smi_name='smiles'):
+def smiles_to_mordred(df, smi_name='smiles', par_jobs=16):
     """ Canonicalize a smiles vector and generate df of Mordred descriptors. """
     from rdkit import Chem
     from mordred import Calculator, descriptors
@@ -96,8 +97,34 @@ def smiles_to_mordred(df, smi_name='smiles'):
     # print( len(Calculator(descriptors, ignore_3D=True, version="1.0.0")) )
 
     # Calc multiple molecules
-    mols = [Chem.MolFromSmiles(smi) for smi in df['smiles'].values]
-    # mols = [mordred_single_smile(smi) for smi in df['smiles'].values]
-    dsc = calc.pandas( mols )
+    mols = [Chem.MolFromSmiles(smi) for smi in df[smi_name].values]
+    # if par_jobs>1:
+    #     mols = Parallel(n_jobs=par_jobs, verbose=1)(
+    #             delayed(smile_to_mol)(smi) for smi in df[smi_name].values)
+    # else:
+    #     # mols = [Chem.MolFromSmiles(smi) for smi in df[smi_name].values]
+    #     mols = [smile_to_mol(smi) for smi in df[smi_name].values]
+
+    # Mol to descriptors
+    dsc = calc.pandas( mols, nproc=par_jobs, nmols=None, quiet=False, ipynb=False )
+    # if par_jobs>1:
+    #     step = int(len(mols)/par_jobs)
+    #     mol_subs = []
+    #     for i in range(par_jobs):
+    #         if i+1 < par_jobs:
+    #             sub = mols[ i*step:(i+1)*step ]
+    #             sub = sub[:2000]
+    #         else:
+    #             sub = mols[ i*step: ]
+    #             sub = sub[:2000]
+    #         mol_subs.append( sub )
+    #     dsc = Parallel(n_jobs=par_jobs, verbose=1)(
+    #             delayed(calc.pandas)(mol_sub) for mol_sub in mol_subs)
+    #     dsc = pd.concat( dsc, axis=0 )
+    # else:
+    #     # mordred-descriptor.github.io/documentation/master/_modules/mordred/_base/calculator.html#Calculator.pandas
+    #     dsc = calc.pandas( mols, nproc=par_jobs, nmols=None, quiet=False, ipynb=False )
+    dsc = pd.concat([df, dsc], axis=1)
     return dsc
+
 
