@@ -16,22 +16,37 @@ def canon_single_smile(smi):
     return can_smi
 
 
-def canon_df(df, smi_name='smiles', par_jobs=16):
-    """ Canonicalize the smiles sting in column name smi_name. """
+# def canon_df(df, smi_name='smiles', par_jobs=16):
+#     """ Canonicalize the smiles sting in column name smi_name. """
+#     smi_vec = []
+#     t0 = time()
+#     if par_jobs>1:
+#         smi_vec = Parallel(n_jobs=par_jobs, verbose=1)(
+#                 delayed(canon_single_smile)(smi) for smi in df[smi_name].tolist())
+#     else:
+#         for i, smi in enumerate(df[smi_name].values):
+#             if i%100000==0:
+#                 print('{}: {:.2f} mins'.format(i, (time()-t0)/60 ))
+#             can_smi = canon_single_smile( smi )
+#             smi_vec.append( can_smi ) # TODO: consider return this, instead of modifying df
+#     df.loc[:, 'smiles'] = smi_vec
+#     return df
+
+
+def canon_smiles(smiles, par_jobs=16):
+    """ Canonicalize each smile in the smiles array. """
     smi_vec = []
     t0 = time()
     if par_jobs>1:
         smi_vec = Parallel(n_jobs=par_jobs, verbose=1)(
-                delayed(canon_single_smile)(smi) for smi in df[smi_name].tolist())
+                delayed(canon_single_smile)(smi) for smi in smiles)
     else:
-        for i, smi in enumerate(df[smi_name].values):
+        for i, smi in enumerate(smiles):
             if i%100000==0:
                 print('{}: {:.2f} mins'.format(i, (time()-t0)/60 ))
             can_smi = canon_single_smile( smi )
-            smi_vec.append( can_smi ) # TODO: consider return this, instead of modifying df
-        
-    df.loc[:, 'smiles'] = smi_vec
-    return df
+            smi_vec.append( can_smi )
+    return smi_vec
 
 
 def fps_single_smile(smi, radius=2, nbits=2048):

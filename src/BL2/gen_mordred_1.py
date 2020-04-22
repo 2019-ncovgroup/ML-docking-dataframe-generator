@@ -25,16 +25,18 @@ sys.path.append( os.path.abspath(filepath/'../utils') )
 # from utils.utils import load_data, get_print_func, drop_dup_rows
 from classlogger import Logger
 from utils import load_data, get_print_func, drop_dup_rows, dropna
-from smiles import canon_df, smiles_to_mordred
+from smiles import canon_smiles, smiles_to_mordred # canon_df 
 
 # DATADIR
-datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw/Baseline-Screen-Datasets/BL2 (current)')
+#datadir = Path('/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/raw/Baseline-Screen-Datasets/BL2 (current)')
+datadir = Path(filepath, '../../data/raw/Baseline-Screen-Datasets/BL2 (current)')
 
 # OUTDIR
 t = datetime.now()
 t = [t.year, '-', t.month, '-', t.day]
 date = ''.join( [str(i) for i in t] )
-outdir = Path( '/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/features/BL2/', date )
+#outdir = Path( '/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/features/BL2/', date )
+OUTDIR = Path( filepath, '../../data/processed/features/BL2/', date )
 
 # SMILES
 SMILES_PATH = str( datadir/'BL2.smi' )
@@ -46,12 +48,30 @@ def parse_args(args):
                         help=f'Full path to the smiles file (default: {SMILES_PATH}).')
     parser.add_argument('--par_jobs', default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
+    parser.add_argument('--i1', default=0, type=int, 
+                        help=f'Begin index to sample smiles (default: 0).')
+    parser.add_argument('--i2', default=None, type=int, 
+                        help=f'End index to sample smiles (default: None).')
     args, other_args = parser.parse_known_args(args)
     return args
 
 
 def run(args):
     t0 = time()
+    
+    print('\nLoad smiles ...')
+    smiles_path = Path(args['smiles_path'])
+    smi = pd.read_csv( smiles_path, sep='\t', names=['smiles', 'name'] )
+    fname = smiles_path.with_suffix('').name
+    n_smiles = smi.shape[0]
+
+    # Create outdir
+    i1, i2 = args['i1'], args['i2']
+    # ids_dir = 'smi.ids.{}-{}'.format(i1, i2)
+    if i2 is None:
+        i2 = n_smiles
+    # outdir = OUTDIR/ids_dir
+    outdir = OUTDIR
     os.makedirs( outdir, exist_ok=True )
 
     # Logger
@@ -64,16 +84,9 @@ def run(args):
     print_fn('Input data dir  {}'.format( datadir ))
     print_fn('Output data dir {}'.format( outdir ))
 
-    # Load smiles and descriptors
-    print_fn('\nLoad smiles ...')
-    smiles_path = Path(args['smiles_path'])
-    fname = smiles_path.with_suffix('').name
-    # smi = pd.read_csv( smiles_path, sep='\t', names=['smiles', 'name'] )
-    smi = pd.read_csv( smiles_path )
-    print_fn('smi {}'.format( smi.shape ))
-
     # Remove duplicates
     print_fn('\nDrop duplicates from smiles ...')
+    print_fn('smi {}'.format( smi.shape ))
     smi = smi.drop_duplicates().reset_index( drop=True )
     print_fn('smi {}'.format( smi.shape ))
     
@@ -82,14 +95,21 @@ def run(args):
     # dup = smi[ smi.duplicated(subset=['smiles'], keep=False) ].reset_index(drop=True)
     # print( dup['smiles'].value_counts() )
 
-    print_fn("\nCanonicalize smiles ...")
-    # smi = smi[:1000]
-    smi = canon_df( smi, par_jobs=args['par_jobs'] )
+    # Exract subset of smiles
+    smi = smi.iloc[i1:i2+1, :].reset_index(drop=True)
 
-    # Drop bad SMILES (that were no canonicalized)
-    ids = smi['smiles'].isna()
-    bad_smi = smi[ ids ].reset_index(drop=True)
-    smi = smi[ ~ids ].reset_index(drop=True)
+    print_fn("\nCanonicalize smiles ...")
+    # smi = canon_df( smi, par_jobs=args['par_jobs'] )
+    # can_smi_vec = canon_df( smi['smiles'], par_jobs=args['par_jobs'] )
+    can_smi_vec = canon_smiles( smi['smiles'], par_jobs=args['par_jobs'] )
+    can_smi_vec = pd.Series(can_smi_vec)
+
+    # Drop bad SMILES (that were not canonicalized)
+    nan_ids = can_smi_vec.isna()
+    bad_smi = smi[ nan_ids ]
+    smi = smi[ ~nan_ids ]
+    if len(bad_smi)>0:
+        bad_smi.to_csv(outdir/'smi_canon_err.csv', index=False)
 
     # Generate descriptors
     dsc = smiles_to_mordred(smi, smi_name='smiles', par_jobs=args['par_jobs'])
@@ -110,7 +130,7 @@ def run(args):
     # print(dsc.isna().sum(axis=1).sort_values(ascending=False))
     # p=dsc.isna().sum(axis=1).sort_values(ascending=False).hist(bins=100);
     th = 0.2
-    print_fn('\nDrop rows (drugs) with at least {} NaNs (at least {} out of {}).'.format(
+    print_fn('\nDrop rows with at least {} NaNs (at least {} out of {}).'.format(
         th, int(th * dsc.shape[1]), dsc.shape[1]))
     print_fn('Shape: {}'.format( dsc.shape ))
     dsc = dropna(dsc, axis=1, th=th)
@@ -138,8 +158,9 @@ def run(args):
     # Save
     print_fn('\nSave ...')
     dsc = dsc.reset_index(drop=True)
-    # dsc.to_parquet( outdir/'BL2.dsc.parquet' )
-    dsc.to_parquet( outdir/(fname+'.dsc.parquet') )
+    fname = 'dsc.ids.{}-{}'.format(i1, i2)
+    # dsc.to_parquet( outdir/(fname+'.parquet') )
+    dsc.to_csv( outdir/(fname+'.csv'), index=False )
 
     print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))
     print_fn('Done.')
