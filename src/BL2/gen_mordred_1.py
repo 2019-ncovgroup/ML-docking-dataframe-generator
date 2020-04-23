@@ -67,11 +67,11 @@ def run(args):
 
     # Create outdir
     i1, i2 = args['i1'], args['i2']
-    # ids_dir = 'smi.ids.{}-{}'.format(i1, i2)
+    ids_dir = 'smi.ids.{}-{}'.format(i1, i2)
     if i2 is None:
         i2 = n_smiles
-    # outdir = OUTDIR/ids_dir
-    outdir = OUTDIR
+    outdir = OUTDIR/ids_dir
+    # outdir = OUTDIR
     os.makedirs( outdir, exist_ok=True )
 
     # Logger
