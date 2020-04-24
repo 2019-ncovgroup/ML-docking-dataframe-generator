@@ -32,7 +32,7 @@ For example, assume a target `3CLPro_pocket1_dock`. The script will dump the fol
 ```
 $ python src/merge_desc_scores.py --scores_path ./data/processed/V3_docking_data_april_9/docking_data_out_v3.1.can.csv --desc_path ./data/processed/descriptors/ena+db/ena+db.smi.desc.parquet --par_jobs 16
 ```
-The `par_jobs` argument uses the `joblib` Python package to parallelize the process.
+The `par_jobs` argument uses the `joblib` Python package to parallelize the process joblib.readthedocs.io.
 
 A subset of `ml.ADRP_pocket1_dock.dsc.csv` from March 30th:
 <img src="figs/ML-df-example.png" alt="drawing" height="200"/>
@@ -53,18 +53,19 @@ Certain targets exhibits a large number of non-docking drugs as shown for `PLPro
 - `smiles`: canonical SMILES string
 
 ## Docking Scores
-Raw docking scores from MD simulations are stored in Box `2019-nCoV/drug-screening/raw_data/`. Every new batch of simulation results is dumped into `2019-nCoV/drug-screening/raw_data/*docking_data_<month>_<day>` (e.g., `2019-nCoV/drug-screening/raw_data/V3_docking_data_april_9`).
-Each batch is structured with drug SMILES in the first column and receptors/targets in the subsequent columns. The values are the docking scores. For more info refer to https://github.com/2019-ncovgroup/HTDockingDataInstructions.
+Raw docking scores from HP docking are stored in Box `2019-nCoV/drug-screening/raw_data/`. Every new batch of results is dumped into `2019-nCoV/drug-screening/raw_data/*docking_data_<month>_<day>` (e.g., `2019-nCoV/drug-screening/raw_data/V3_docking_data_april_9`).
+Each batch is structured with a SMILES string in the first column and receptors/targets in the subsequent columns. The values are the docking scores. For more info refer to https://github.com/2019-ncovgroup/HTDockingDataInstructions.
 
 <img src="figs/docking-results-example.png" alt="drawing" height="200"/>
 
 ## Molecular Features
-The original Mordred descriptors are stored in Box `2019-nCoV/drug-screening/ena+db.desc.gz`. This file requires some pre-processing (duplicates, bad rows, NaNs, casting). This needs to be done only once. The clean version of the features (Enamine + DrugBank; 300K SMILES) can be found in Box `2019-nCoV/drug-screening/features/ena+db/ena+db.features.parquet`. If you need to generate the descriptors from the original file, follow the steps below.
+The construction of molecular feature sets is moved to another repo https://github.com/adpartin/mol-features
+Below is a screenshot of Mordred descriptors. 
 
-- Clean and canonicalize smiles `ena+db.smi`. Use `src/ena+db/clean_smiles.py` (updated file is in `2019-nCoV/drug_screening/features/ena+db/ena+db.smi.can.csv`)
+<!-- The original Mordred descriptors are stored in Box `2019-nCoV/drug-screening/ena+db.desc.gz`. This file requires some pre-processing (duplicates, bad rows, NaNs, casting). This needs to be done only once. The clean version of the features (Enamine + DrugBank; 300K SMILES) can be found in Box `2019-nCoV/drug-screening/features/ena+db/ena+db.features.parquet`. If you need to generate the descriptors from the original file, follow the steps below. -->
+
+<!-- - Clean and canonicalize smiles `ena+db.smi`. Use `src/ena+db/clean_smiles.py` (updated file is in `2019-nCoV/drug_screening/features/ena+db/ena+db.smi.can.csv`)
 - Clean descriptors `ena+db.desc`. Use `src/ena+db/clean_desc.py` (updated file is in `2019-nCoV/drug_screening/features/ena+db/ena+db.desc.parquet`)
-<!-- - Merge smiles and descriptors using `src/ena+db/merge_smi_desc.py` (updated file is in `2019-nCoV/drug_screening/descriptors/ena+db/ena+db.smi.desc.parquet`)
- -->
-- Merge smiles with descriptors and generate fingerprints from smiles (ECFP2, ECFP4, ECFP6). Use `src/ena+db/gen_fea_df.py` (updated file is in `2019-nCoV/drug_screening/features/ena+db/ena+db.features.parquet`)
+- Merge smiles with descriptors and generate fingerprints from smiles (ECFP2, ECFP4, ECFP6). Use `src/ena+db/gen_fea_df.py` (updated file is in `2019-nCoV/drug_screening/features/ena+db/ena+db.features.parquet`) -->
 
 <img src="figs/smi-desc-df.png" alt="drawing" height="220"/>
