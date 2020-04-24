@@ -9,7 +9,7 @@ $ git clone https://github.com/2019-ncovgroup/ML-docking-dataframe-generator
 Inside project dir, create folder that will contain raw docking scores.
 ```shell
 $ cd ML-docking-dataframe-generator
-$ mkdir data/raw/raw_data
+$ mkdir -p data/raw/raw_data
 ```
 
 Copy a batch of docking score results from Box or Petrel to `./data/raw/raw_data`. E.g., from Box copy this batch 2019-nCoV/drug-screening/raw_data/V3_docking_data_april_9.
