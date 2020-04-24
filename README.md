@@ -13,27 +13,28 @@ $ mkdir -p data/raw/raw_data
 ```
 
 Copy a batch of docking score results from Box or Petrel to `./data/raw/raw_data` (e.g., from Box copy 019-nCoV/drug-screening/raw_data/V3_docking_data_april_9).
-<!-- Run script to canoncalize the SMILES. This will dump the original scores with the `smiles` column canonicalized into `./data/processed/V3_docking_data_april_9`.
+<!-- Run script to canoncalize the SMILES. This will dump the original scores with the `smiles` column canonicalized into `./data/processed/V3_docking_data_april_9`. -->
 <!-- ```shell
 $ python canon_smiles.py --datapath data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv
-```
+``` -->
 
 ## Genearte ML dataframes
-The main script `./src/main_gen_dfs.py` loads docking scores from `./data/processed/V3_docking_data_april_9/docking_data_out_v3.1.can.parquet`, canonicalizes the `smiles` column, and merges `smiles`. The script then parses the merged dataset to generate an ML dataframe for every receptor/target (columns in the docking results file starting from [1:]).
-<!-- and every feature type (available in features dataset).<br>
+The main script `./src/main_gen_dfs.py` takes docking scores (argument `--scores_path`) and features (argument `--fea_path`) to generate ML dataframes.
+The script canonicalizes the `smiles` column (first column) in the docking file and merges with the features (descriptors) on `smiles`. The script then parses the merged dataset to generate an ML dataframe for every receptor/target (columns in the docking file starting from [1:]).
+<!-- and every feature type (available in features dataset).<br> -->
 
 The resulting ML data files follow the same naming convention: `ml.<target_name>.<feature_type>.csv`.
 For example, assume a target `3CLPro_pocket1_dock`. The script will dump the following files:
 - `ml.3CLPro_pocket1_round1_dock.dsc.csv` --> scores with Mordred descriptors
 - `ml.3CLPro_pocket1_round1_dock.dsc.scaler.pkl` --> standard scaler for descriptors; the desciptors file is not scaled (see note below)
-- `ml.3CLPro_pocket1_round1_dock.ecfp2.csv` --> scores with ECFP2 fingerprints
-- `ml.3CLPro_pocket1_round1_dock.ecfp4.csv` --> scores with ECFP4 fingerprints
-- `ml.3CLPro_pocket1_round1_dock.ecfp6.csv` --> scores with ECFP6 fingerprints
+<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp2.csv` --> scores with ECFP2 fingerprints -->
+<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp4.csv` --> scores with ECFP4 fingerprints -->
+<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp6.csv` --> scores with ECFP6 fingerprints -->
 
 ```
-$ python src/merge_desc_scores.py --scores_path ./data/processed/V3_docking_data_april_9/docking_data_out_v3.1.can.csv --desc_path ./data/processed/descriptors/ena+db/ena+db.smi.desc.parquet --par_jobs 16
+$ python src/merge_desc_scores.py --scores_path ./data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv --fea_path ./data/raw/features/BL1/ena+db.smi.desc.parquet --par_jobs 16
 ```
-The `par_jobs` argument uses the `joblib` Python package to parallelize the process joblib.readthedocs.io.
+The `par_jobs` argument uses the `joblib` Python package to parallelize the process https://joblib.readthedocs.io/.
 
 A subset of `ml.ADRP_pocket1_dock.dsc.csv` from March 30th:
 <img src="figs/ML-df-example.png" alt="drawing" height="200"/>
