@@ -1,7 +1,7 @@
 """
 This script parses docking score results and merges the
 results of each target with mulitple types of molecular features.
-An ML dataframe, containing a single feature type is saved into file.
+An ML dataframe, containing a single feature type is saved into a file.
 Refer to this repo for into on docking results.
 (github.com/2019-ncovgroup/HTDockingDataInstructions)
 """
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from time import time
 import argparse
-from pprint import pprint, pformat
+from pprint import pformat
 
 # from multiprocessing import Pool
 from joblib import Parallel, delayed
