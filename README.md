@@ -12,7 +12,7 @@ $ cd ML-docking-dataframe-generator
 $ mkdir -p data/raw/raw_data
 ```
 
-Copy a batch of docking score results from Box or Petrel to `./data/raw/raw_data` (e.g., from Box copy this batch 2019-nCoV/drug-screening/raw_data/V3_docking_data_april_9).
+Copy a batch of docking score results from Box or Petrel to `./data/raw/raw_data` (e.g., from Box copy 019-nCoV/drug-screening/raw_data/V3_docking_data_april_9).
 <!-- Run script to canoncalize the SMILES. This will dump the original scores with the `smiles` column canonicalized into `./data/processed/V3_docking_data_april_9`.
 <!-- ```shell
 $ python canon_smiles.py --datapath data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv
