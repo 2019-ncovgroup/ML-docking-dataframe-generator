@@ -1,9 +1,7 @@
 """
 This script parses docking score results and merges the
-results of each target with mulitple types of molecular features.
+scores of each target with mulitple types of molecular features.
 An ML dataframe, containing a single feature type is saved into a file.
-Refer to this repo for into on docking results.
-(github.com/2019-ncovgroup/HTDockingDataInstructions)
 """
 import warnings
 warnings.filterwarnings('ignore')
@@ -15,7 +13,6 @@ from time import time
 import argparse
 from pprint import pformat
 
-# from multiprocessing import Pool
 from joblib import Parallel, delayed
 
 import numpy as np
@@ -31,16 +28,16 @@ filepath = Path(__file__).resolve().parent
 from utils.classlogger import Logger
 from utils.utils import load_data, get_print_func, drop_dup_rows
 from ml.data import extract_subset_fea, extract_subset_fea_col_names
+from utils.smiles import canon_smiles
 
 # ENA+DB 300K
 # DESC_PATH = filepath/'../data/processed/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
-FEA_PATH = filepath/'../data/processed/features/ena+db/ena+db.features.parquet' # ENA+DB
+# FEA_PATH = filepath/'../data/processed/features/ena+db/ena+db.features.parquet' # ENA+DB
+FEA_PATH = filepath/'../data/raw/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
 meta_cols = ['name', 'smiles']  # for ena+db
 
-# DESC_PATH = filepath / '../data/processed/descriptors/UC-molecules/UC.smi.desc.parquet' # UC-molecules
-# meta_cols = ['smiles']  # for UC-molecules
-
-SCORES_MAIN_PATH = filepath/'../data/processed'
+# SCORES_MAIN_PATH = filepath/'../data/processed'
+SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
 
 # 03/30/2020
 # SCORES_PATH = SCORES_MAIN_PATH / 'docking_data_march_30/docking_data_out_v2.0.can.parquet'
@@ -49,7 +46,8 @@ SCORES_MAIN_PATH = filepath/'../data/processed'
 # SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_9/docking_data_out_v3.1.can.parquet'
 
 # 04/09/2020
-SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.can.parquet'
+# SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.can.parquet'
+SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 
 
 def parse_args(args):
@@ -85,11 +83,12 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     Returns:
         dd_trg : the ML dataframe 
     """
-    print_fn( f'Start processing {trg_name} ...' )
+    print_fn( f'Processing {trg_name} ...' )
     res = {}
     res['target'] = trg_name
 
-    fea_list = ['mod', 'ecfp2', 'ecfp4', 'ecfp6']
+    # fea_list = ['mod', 'ecfp2', 'ecfp4', 'ecfp6']
+    fea_list = ['mod']
     fea_cols = extract_subset_fea_col_names(dd, fea_list=fea_list, fea_sep='.')
     cols = [trg_name] + meta_cols + fea_cols
     dd_trg = dd[ cols ]
@@ -102,10 +101,9 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     dd_trg = dd_trg.rename( columns={trg_name: score_name} )
 
     # File name
-    prefix = 'ml.'
-    fname = prefix + trg_name
+    fname = 'ml.' + trg_name
     
-    # Translate scores to positive
+    # Transform scores to positive
     dd_trg[score_name] = abs( np.clip(dd_trg[score_name], a_min=None, a_max=0) )
     res['min'], res['max'] = dd_trg[score_name].min(), dd_trg[score_name].max()
     bins = 50
@@ -125,14 +123,14 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     # -----------------------------------------      
     # Find quantile value
     # for q in args['q_bins']:
-    if dd_trg[score_name].min() >= 0: # if scores were transformed to >0
+    if dd_trg[score_name].min() >= 0: # if scores were transformed to >=0
         q_cls = 1.0 - q_cls
     cls_th = dd_trg[score_name].quantile(q=q_cls)
     res['cls_th'] = cls_th
     print_fn('Quantile score (q_cls={:.3f}): {:.3f}'.format( q_cls, cls_th ))
 
     # Generate a classification target col
-    if dd_trg[score_name].min() >= 0: # if scores were transformed to >0
+    if dd_trg[score_name].min() >= 0: # if scores were transformed to >=0
         value = (dd_trg[score_name] >= cls_th).astype(int)
     else:
         value = (dd_trg[score_name] <= cls_th).astype(int)
@@ -162,21 +160,22 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
         fea_cols_drop = extract_subset_fea_col_names(df, fea_list=fea_prfx_drop, fea_sep='.')
         data = df.drop( columns=fea_cols_drop )
         outpath_name = outdir/(fname+f'.{name}')
-        data.to_parquet( str(outpath_name)+'.parquet' )
+        # data.to_parquet( str(outpath_name)+'.parquet' )
         if to_csv:
             data.to_csv( str(outpath_name)+'.csv' , index=False )
         return data
 
     print_fn( f'Create and save dataframes ...' )
     to_csv = True
-    extract_and_save_fea( dd_trg, fea='ecfp2', name='ecfp2', to_csv=to_csv );
-    extract_and_save_fea( dd_trg, fea='ecfp4', name='ecfp4', to_csv=to_csv );
-    extract_and_save_fea( dd_trg, fea='ecfp6', name='ecfp6', to_csv=to_csv );
+    # extract_and_save_fea( dd_trg, fea='ecfp2', name='ecfp2', to_csv=to_csv );
+    # extract_and_save_fea( dd_trg, fea='ecfp4', name='ecfp4', to_csv=to_csv );
+    # extract_and_save_fea( dd_trg, fea='ecfp6', name='ecfp6', to_csv=to_csv );
     dsc_df = extract_and_save_fea( dd_trg, fea='mod', name='dsc', to_csv=False )
 
-    # Scale desciptors and save scaler (doesn't save the scaled features)
+    # Scale desciptors and save scaler (save raw features rather the scaled)
     from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-    from sklearn.externals import joblib
+    # from sklearn.externals import joblib
+    import joblib
     xdata = extract_subset_fea(dsc_df, fea_list='mod', fea_sep='.')
     cols = xdata.columns
     sc = StandardScaler( with_mean=True, with_std=True )
@@ -200,7 +199,10 @@ def run(args):
     if args['outdir'] is not None:
         outdir = Path( args['outdir'] ).resolve()
     else:
-        outdir = scores_path.parent
+        # outdir = scores_path.parent
+        fname = scores_path.name
+        outdir = Path(str(scores_path.parent).replace('/raw/raw_data/', '/processed/'))
+
     outfigs = outdir/'figs'
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(outfigs, exist_ok=True)
@@ -212,8 +214,7 @@ def run(args):
     print_fn(f'File path: {filepath}')
     print_fn(f'\n{pformat(args)}')
     
-    print_fn('\nPython filepath  {}'.format( filepath ))
-    print_fn('Scores data path {}'.format( scores_path ))
+    print_fn('\nScores data path {}'.format( scores_path ))
     print_fn('Features path    {}'.format( fea_path ))
     print_fn('Outdir data path {}'.format( outdir ))
 
@@ -232,6 +233,18 @@ def run(args):
     print_fn('rsp {}'.format( rsp.shape ))
     rsp = drop_dup_rows(rsp, print_fn=print_fn)
 
+    print_fn('\nCanonicalize smiles ...')
+    can_smi_vec = canon_smiles( rsp['smiles'], par_jobs=args['par_jobs'] )
+    can_smi_vec = pd.Series(can_smi_vec)
+
+    # Drop bad SMILES (that were not canonicalized)
+    nan_ids = can_smi_vec.isna()
+    bad_smi = rsp[ nan_ids ]
+    rsp['smiles'] = can_smi_vec
+    rsp = rsp[ ~nan_ids ].reset_index(drop=True)
+    if len(bad_smi)>0:
+        bad_smi.to_csv(outdir/'smi_canon_err.csv', index=False)
+
     print_fn( '\n{}'.format( rsp.columns.tolist() ))
     print_fn( '\n{}\n'.format( rsp.iloc[:3,:4] ))
 
@@ -239,11 +252,11 @@ def run(args):
     # Merge features with dock scores
     # -----------------------------------------    
     unq_smiles = set( rsp['smiles'] ).intersection( set(fea['smiles']) )
-    print_fn( "Unique smiles in rsp: {}".format( rsp['smiles'].nunique() ))
-    print_fn( "Unique smiles in fea: {}".format( fea['smiles'].nunique() ))
-    print_fn( "Intersect on smiles:  {}".format( len(unq_smiles) ))
+    print_fn( 'Unique smiles in rsp: {}'.format( rsp['smiles'].nunique() ))
+    print_fn( 'Unique smiles in fea: {}'.format( fea['smiles'].nunique() ))
+    print_fn( 'Intersect on smiles:  {}'.format( len(unq_smiles) ))
 
-    print_fn("\nMerge features with docking scores on 'smiles' ...")
+    print_fn('\nMerge features with docking scores on smiles ...')
     dd = pd.merge(rsp, fea, on='smiles', how='inner')
     print_fn('Merged {}'.format( dd.shape ))
     print_fn('Unique smiles in final df: {}'.format( dd['smiles'].nunique() ))
@@ -258,23 +271,19 @@ def run(args):
                'q_cls': args['q_bins'][0], 'bin_th': bin_th, 'print_fn': print_fn,
                'outdir': outdir, 'outfigs': outfigs }
 
-    t0 = time()
     if par_jobs > 1:
         # https://joblib.readthedocs.io/en/latest/parallel.html
         results = Parallel(n_jobs=par_jobs, verbose=20)(
                 delayed(gen_ml_df)(trg_name=trg, **kwargs) for trg in trg_names )
     else:
         results = []
-        runtimes = []
         for trg in trg_names:
-            t_start = time()
             res = gen_ml_df(trg_name=trg, **kwargs)
             results.append( res )
-            # print_fn('Runtime {:.2f} mins'.format( (time()-t_start)/60 ))
-            runtimes.append( str((time()-t_start)/60) + ' mins' )
 
     pd.DataFrame(results).to_csv( outdir/'dock.summary.csv', index=False )
 
+    # --------------------------------------------------------
     print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))
     print_fn('Done.')
     lg.kill_logger()

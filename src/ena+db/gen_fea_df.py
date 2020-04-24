@@ -96,26 +96,27 @@ def run(args):
     smi_dsc = smi_dsc.drop_duplicates(subset=cols).reset_index( drop=True )
     print_fn('Final smi_dsc {}'.format( smi_dsc.shape ))
 
-    # Generate fingerprints
-    smi_vec = smi_dsc[['smiles']].copy()
-    ecfp2 = smiles_to_fps(smi_vec, radius=1, smi_name='smiles', par_jobs=64)
-    ecfp4 = smiles_to_fps(smi_vec, radius=2, smi_name='smiles', par_jobs=64)
-    ecfp6 = smiles_to_fps(smi_vec, radius=3, smi_name='smiles', par_jobs=64)
+    # # Generate fingerprints
+    # smi_vec = smi_dsc[['smiles']].copy()
+    # ecfp2 = smiles_to_fps(smi_vec, radius=1, smi_name='smiles', par_jobs=64)
+    # ecfp4 = smiles_to_fps(smi_vec, radius=2, smi_name='smiles', par_jobs=64)
+    # ecfp6 = smiles_to_fps(smi_vec, radius=3, smi_name='smiles', par_jobs=64)
 
     def add_fea_prfx(df, prfx:str):
         return df.rename(columns={s: prfx+str(s) for s in df.columns[1:]})
 
-    ecfp2 = add_fea_prfx(ecfp2, prfx='ecfp2.')
-    ecfp4 = add_fea_prfx(ecfp4, prfx='ecfp4.')
-    ecfp6 = add_fea_prfx(ecfp6, prfx='ecfp6.')
+    # ecfp2 = add_fea_prfx(ecfp2, prfx='ecfp2.')
+    # ecfp4 = add_fea_prfx(ecfp4, prfx='ecfp4.')
+    # ecfp6 = add_fea_prfx(ecfp6, prfx='ecfp6.')
 
-    smi_dsc.set_index('smiles', inplace=True)
-    ecfp2.set_index('smiles', inplace=True)
-    ecfp4.set_index('smiles', inplace=True)
-    ecfp6.set_index('smiles', inplace=True)
+    # smi_dsc.set_index('smiles', inplace=True)
+    # ecfp2.set_index('smiles', inplace=True)
+    # ecfp4.set_index('smiles', inplace=True)
+    # ecfp6.set_index('smiles', inplace=True)
 
-    data = pd.concat([smi_dsc, ecfp2, ecfp4, ecfp6], axis=1).reset_index()
-    del smi_dsc, ecfp2, ecfp4, ecfp6
+    # data = pd.concat([smi_dsc, ecfp2, ecfp4, ecfp6], axis=1).reset_index()
+    # del smi_dsc, ecfp2, ecfp4, ecfp6
+    data = smi_dsc
 
     # Save
     print_fn('\nSave ...')
