@@ -25,14 +25,14 @@ The script canonicalizes the `smiles` column (first column) in the docking file 
 
 The resulting ML data files follow the same naming convention: `ml.<target_name>.<feature_type>.csv`.
 For example, assume a target `3CLPro_pocket1_dock`. The script will dump the following files:
-- `ml.3CLPro_pocket1_round1_dock.dsc.csv` --> scores with Mordred descriptors
-- `ml.3CLPro_pocket1_round1_dock.dsc.scaler.pkl` --> standard scaler for descriptors; the desciptors file is not scaled (see note below)
-<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp2.csv` --> scores with ECFP2 fingerprints -->
-<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp4.csv` --> scores with ECFP4 fingerprints -->
-<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp6.csv` --> scores with ECFP6 fingerprints -->
+- `ml.3CLPro_pocket1_round1_dock.dsc.csv` (scores with Mordred descriptors)
+- `ml.3CLPro_pocket1_round1_dock.dsc.scaler.pkl` (standard scaler for descriptors; the desciptors file is not scaled, see note below)
+<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp2.csv` (scores with ECFP2 fingerprints) -->
+<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp4.csv` (scores with ECFP4 fingerprints) -->
+<!-- - `ml.3CLPro_pocket1_round1_dock.ecfp6.csv` (scores with ECFP6 fingerprints) -->
 
 ```
-$ python src/merge_desc_scores.py --scores_path ./data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv --fea_path ./data/raw/features/BL1/ena+db.smi.desc.parquet --par_jobs 16
+$ python src/main_gen_dfs.py --scores_path ./data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv --fea_path ./data/raw/features/BL1/ena+db.smi.desc.parquet --par_jobs 16
 ```
 The `par_jobs` argument uses the `joblib` Python package to parallelize the process https://joblib.readthedocs.io/.
 
@@ -56,7 +56,7 @@ Certain targets exhibits a large number of non-docking drugs as shown for `PLPro
 
 ## Docking Scores
 Raw docking scores from HP docking are stored in Box `2019-nCoV/drug-screening/raw_data/`. Every new batch of results is dumped into `2019-nCoV/drug-screening/raw_data/*docking_data_<month>_<day>` (e.g., `2019-nCoV/drug-screening/raw_data/V3_docking_data_april_9`).
-Each batch is structured with a SMILES string in the first column and receptors/targets in the subsequent columns. The values are the docking scores. For more info refer to https://github.com/2019-ncovgroup/HTDockingDataInstructions.
+Each batch is structured with SMILES strings in the first column and receptors/targets in the subsequent columns. The values are the docking scores. For more info refer to https://github.com/2019-ncovgroup/HTDockingDataInstructions.
 
 <img src="figs/docking-results-example.png" alt="drawing" height="200"/>
 
