@@ -172,7 +172,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
 
     # Scale desciptors and save scaler (save raw features rather the scaled)
     from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-    # from sklearn.externals import joblib
     import joblib
     xdata = extract_subset_fea(dsc_df, fea_list='mod', fea_sep='.')
     cols = xdata.columns
@@ -207,17 +206,17 @@ def run(args):
     args['outdir'] = outdir
     
     # Logger
-    lg = Logger( outdir/'create.ml.data.log' )
+    lg = Logger( outdir/'gen.ml.data.log' )
     print_fn = get_print_func( lg.logger )
     print_fn(f'File path: {filepath}')
     print_fn(f'\n{pformat(args)}')
     
     print_fn('\nDocking scores path {}'.format( scores_path ))
     print_fn('Features path       {}'.format( fea_path ))
-    print_fn('Outdir data path    {}'.format( outdir ))
+    print_fn('Outdir path         {}'.format( outdir ))
 
     # -----------------------------------------
-    # Load data (features and dock scores)
+    # Load data (features and docking scores)
     # -----------------------------------------    
     # Features (with smiles)
     print_fn('\nLoad features ...')
