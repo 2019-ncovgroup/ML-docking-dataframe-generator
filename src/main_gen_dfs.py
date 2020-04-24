@@ -54,8 +54,6 @@ def parse_args(args):
     parser = argparse.ArgumentParser(description='Merge drug features and docking scores.')
     parser.add_argument('-sp', '--scores_path', default=str(SCORES_PATH), type=str,
                         help='Path to the docking scores resutls file (default: {SCORES_PATH}).')
-    # parser.add_argument('--desc_path', default=str(DESC_PATH), type=str,
-    #                     help='Path to the descriptors file (default: {DESC_PATH}).')
     parser.add_argument('--fea_path', default=str(FEA_PATH), type=str,
                         help='Path to the features file (default: {FEA_PATH}).')
     parser.add_argument('-od', '--outdir', default=None, type=str,
@@ -191,6 +189,7 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
 
 
 def run(args):
+    t0=time()
     scores_path = Path( args['scores_path'] ).resolve()
     fea_path = Path( args['fea_path'] ).resolve()
     par_jobs = int( args['par_jobs'] )
@@ -199,9 +198,8 @@ def run(args):
     if args['outdir'] is not None:
         outdir = Path( args['outdir'] ).resolve()
     else:
-        # outdir = scores_path.parent
-        fname = scores_path.name
-        outdir = Path(str(scores_path.parent).replace('/raw/raw_data/', '/processed/'))
+        batch_name = scores_path.parent.name
+        outdir = Path( filepath/'../out'/batch_name ).resolve()
 
     outfigs = outdir/'figs'
     os.makedirs(outdir, exist_ok=True)
@@ -214,9 +212,9 @@ def run(args):
     print_fn(f'File path: {filepath}')
     print_fn(f'\n{pformat(args)}')
     
-    print_fn('\nScores data path {}'.format( scores_path ))
-    print_fn('Features path    {}'.format( fea_path ))
-    print_fn('Outdir data path {}'.format( outdir ))
+    print_fn('\nDocking scores path {}'.format( scores_path ))
+    print_fn('Features path       {}'.format( fea_path ))
+    print_fn('Outdir data path    {}'.format( outdir ))
 
     # -----------------------------------------
     # Load data (features and dock scores)
@@ -224,13 +222,13 @@ def run(args):
     # Features (with smiles)
     print_fn('\nLoad features ...')
     fea = load_data( FEA_PATH )
-    print_fn('fea {}'.format( fea.shape ))
+    print_fn('Features {}'.format( fea.shape ))
     fea = drop_dup_rows(fea, print_fn=print_fn)
 
     # Docking scores
     print_fn('\nLoad docking scores ...')
     rsp = load_data( args['scores_path'] )
-    print_fn('rsp {}'.format( rsp.shape ))
+    print_fn('Docking {}'.format( rsp.shape ))
     rsp = drop_dup_rows(rsp, print_fn=print_fn)
 
     print_fn('\nCanonicalize smiles ...')
@@ -263,10 +261,8 @@ def run(args):
     trg_names = rsp.columns[1:].tolist()
     del rsp, fea
 
-    # dd = load_data( '/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator/data/processed/V3_docking_data_april_9/dd.parquet' )
-    # trg_names = dd.columns[1:20].tolist()
-    score_name = 'reg'
-    bin_th = 2.0
+    score_name = 'reg' # unified name for docking scores column in all output dfs
+    bin_th = 2.0 # threshold value for the binner column (classifier)
     kwargs = { 'dd': dd, 'meta_cols': meta_cols, 'score_name': score_name,
                'q_cls': args['q_bins'][0], 'bin_th': bin_th, 'print_fn': print_fn,
                'outdir': outdir, 'outfigs': outfigs }
@@ -276,7 +272,7 @@ def run(args):
         results = Parallel(n_jobs=par_jobs, verbose=20)(
                 delayed(gen_ml_df)(trg_name=trg, **kwargs) for trg in trg_names )
     else:
-        results = []
+        results = [] # docking summary
         for trg in trg_names:
             res = gen_ml_df(trg_name=trg, **kwargs)
             results.append( res )

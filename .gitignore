@@ -3,6 +3,7 @@
 *__*
 old/
 data/
+out/
 #data/raw/*.desc
 #data/raw/raw_data/*
 #data/raw/UC-molecules/
