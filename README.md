@@ -6,13 +6,18 @@ Clone the repo.
 $ git clone https://github.com/2019-ncovgroup/ML-docking-dataframe-generator
 ```
 
-Inside project dir, create folder that will contain raw docking scores.
+Inside project dir, create folders that will contain raw docking scores and features.
 ```shell
 $ cd ML-docking-dataframe-generator
 $ mkdir -p data/raw/raw_data
+$ mkdir -p data/raw/features
 ```
 
 Copy a batch of docking score results from Box or Petrel to `./data/raw/raw_data` (e.g., from Box copy 019-nCoV/drug-screening/raw_data/V3_docking_data_april_9).
+
+Get the required data from Box (or Globus):
+- Docking scores from `19-nCoV/drug-screening/raw_data/<batch_name>` to `./data/raw/raw_data`
+- Features from `19-nCoV/drug-screening/features/<set_name>` to `./data/raw/features`
 <!-- Run script to canoncalize the SMILES. This will dump the original scores with the `smiles` column canonicalized into `./data/processed/V3_docking_data_april_9`. -->
 <!-- ```shell
 $ python canon_smiles.py --datapath data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv
