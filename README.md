@@ -13,8 +13,6 @@ $ mkdir -p data/raw/raw_data
 $ mkdir -p data/raw/features
 ```
 
-Copy a batch of docking score results from Box or Petrel to `./data/raw/raw_data` (e.g., from Box copy 019-nCoV/drug-screening/raw_data/V3_docking_data_april_9).
-
 Get the required data from Box (or Globus):
 - Docking scores from `19-nCoV/drug-screening/raw_data/<batch_name>` to `./data/raw/raw_data`
 - Features from `19-nCoV/drug-screening/features/<set_name>` to `./data/raw/features`
