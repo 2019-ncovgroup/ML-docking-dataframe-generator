@@ -30,39 +30,29 @@ from utils.utils import load_data, get_print_func, drop_dup_rows
 from ml.data import extract_subset_fea, extract_subset_fea_col_names
 from utils.smiles import canon_smiles
 
-# ENA+DB 300K
-# DESC_PATH = filepath/'../data/processed/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
-# FEA_PATH = filepath/'../data/processed/features/ena+db/ena+db.features.parquet' # ENA+DB
-FEA_PATH = filepath/'../data/raw/descriptors/ena+db/ena+db.smi.desc.parquet' # ENA+DB
-meta_cols = ['name', 'smiles']  # for ena+db
+# Features
+FEA_PATH = filepath/'../data/raw/features/BL1/ena+db.smi.desc.parquet' # BL1 (ENA+DB: ~305K)
+meta_cols = ['name', 'smiles']
 
-# SCORES_MAIN_PATH = filepath/'../data/processed'
+# Docking
 SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
-
-# 03/30/2020
-# SCORES_PATH = SCORES_MAIN_PATH / 'docking_data_march_30/docking_data_out_v2.0.can.parquet'
-
-# 04/09/2020
-# SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_9/docking_data_out_v3.1.can.parquet'
-
-# 04/09/2020
-# SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.can.parquet'
 SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 
 
 def parse_args(args):
-    parser = argparse.ArgumentParser(description='Merge drug features and docking scores.')
+    parser = argparse.ArgumentParser(description='Generate ML dataframes from molecular features and docking scores.')
     parser.add_argument('-sp', '--scores_path', default=str(SCORES_PATH), type=str,
-                        help='Path to the docking scores resutls file (default: {SCORES_PATH}).')
+                        help='Path to docking score resutls file (default: {SCORES_PATH}).')
     parser.add_argument('--fea_path', default=str(FEA_PATH), type=str,
-                        help='Path to the features file (default: {FEA_PATH}).')
+                        help='Path to molecular features file (default: {FEA_PATH}).')
     parser.add_argument('-od', '--outdir', default=None, type=str,
                         help=f'Output dir (default: None).')
-    parser.add_argument('--q_bins', default=[ 0.025 ], type=float, nargs='+',
-                        help=f'Quantiles to bin the dock score (default: 0.025).')
+    parser.add_argument('--q_bins', default=0.025, type=float,
+                        help=f'Quantile to bin the docking score (default: 0.025).')
     parser.add_argument('--par_jobs', default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
-    args, other_args = parser.parse_known_args( args )
+    # args, other_args = parser.parse_known_args( args )
+    args= parser.parse_args( args )
     return args
 
 
@@ -71,7 +61,7 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
               outfigs=Path('outfigs')):
     """ Generate a single ML dataframe for the specified target column trg_name.
     Args:
-        dd : dataframe with (drugs x targets) where the first col is smiles.
+        dd : dataframe with (molecules x targets) where the first col is smiles.
         trg_name : a column in dd representing the target 
         meta_cols : metadata columns to include in the dataframe
         score_name : rename the trg_name with score_name
@@ -120,7 +110,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     # Create binner
     # -----------------------------------------      
     # Find quantile value
-    # for q in args['q_bins']:
     if dd_trg[score_name].min() >= 0: # if scores were transformed to >=0
         q_cls = 1.0 - q_cls
     cls_th = dd_trg[score_name].quantile(q=q_cls)
@@ -133,7 +122,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     else:
         value = (dd_trg[score_name] <= cls_th).astype(int)
     dd_trg.insert(loc=1, column='cls', value=value)
-    # dd.insert(loc=1, column=f'dock_bin_{q}', value=value)
     # print_fn('Ratio {:.3f}'.format( dd['dock_bin'].sum() / dd.shape[0] ))
 
     # Plot
@@ -164,14 +152,14 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
         return data
 
     print_fn( f'Create and save dataframes ...' )
-    to_csv = True
+    # to_csv = True
     # extract_and_save_fea( dd_trg, fea='ecfp2', name='ecfp2', to_csv=to_csv );
     # extract_and_save_fea( dd_trg, fea='ecfp4', name='ecfp4', to_csv=to_csv );
     # extract_and_save_fea( dd_trg, fea='ecfp6', name='ecfp6', to_csv=to_csv );
     dsc_df = extract_and_save_fea( dd_trg, fea='mod', name='dsc', to_csv=False )
 
     # Scale desciptors and save scaler (save raw features rather the scaled)
-    from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+    from sklearn.preprocessing import StandardScaler
     import joblib
     xdata = extract_subset_fea(dsc_df, fea_list='mod', fea_sep='.')
     cols = xdata.columns
@@ -234,13 +222,15 @@ def run(args):
     can_smi_vec = canon_smiles( rsp['smiles'], par_jobs=args['par_jobs'] )
     can_smi_vec = pd.Series(can_smi_vec)
 
-    # Drop bad SMILES (that were not canonicalized)
+    # Save to file bad smiles (that were not canonicalized)
     nan_ids = can_smi_vec.isna()
     bad_smi = rsp[ nan_ids ]
-    rsp['smiles'] = can_smi_vec
-    rsp = rsp[ ~nan_ids ].reset_index(drop=True)
     if len(bad_smi)>0:
         bad_smi.to_csv(outdir/'smi_canon_err.csv', index=False)
+
+    # Keep the good (canonicalized) smiles
+    rsp['smiles'] = can_smi_vec
+    rsp = rsp[ ~nan_ids ].reset_index(drop=True)
 
     print_fn( '\n{}'.format( rsp.columns.tolist() ))
     print_fn( '\n{}\n'.format( rsp.iloc[:3,:4] ))
@@ -263,7 +253,7 @@ def run(args):
     score_name = 'reg' # unified name for docking scores column in all output dfs
     bin_th = 2.0 # threshold value for the binner column (classifier)
     kwargs = { 'dd': dd, 'meta_cols': meta_cols, 'score_name': score_name,
-               'q_cls': args['q_bins'][0], 'bin_th': bin_th, 'print_fn': print_fn,
+               'q_cls': args['q_bins'], 'bin_th': bin_th, 'print_fn': print_fn,
                'outdir': outdir, 'outfigs': outfigs }
 
     if par_jobs > 1:
