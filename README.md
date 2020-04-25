@@ -22,8 +22,10 @@ $ python canon_smiles.py --datapath data/raw/raw_data/V3_docking_data_april_9/do
 ``` -->
 
 ## Genearte ML dataframes
-The main script `./src/main_gen_dfs.py` takes docking scores (argument `--scores_path`) and features (argument `--fea_path`) to generate ML dataframes.
-The script canonicalizes the `smiles` column (first column) in the docking file and merges with the features (descriptors) on `smiles`. The script then parses the merged dataset to generate an ML dataframe for every receptor/target (columns in the docking file starting from [1:]).
+The main script `./src/main_gen_dfs.py` takes as input arguments the docking scores (argument `--scores_path`) and features (argument `--fea_path`):<br>
+- canonicalizes the `smiles` column (first column) in the docking file
+- merges the dockings with the features (descriptors) on `smiles`
+- parses the merged dataset to generate an ML dataframe for every receptor/target (columns in the docking file starting from [1:]).
 <!-- and every feature type (available in features dataset).<br> -->
 
 The resulting ML data files follow the same naming convention: `ml.<target_name>.<feature_type>.csv`.
