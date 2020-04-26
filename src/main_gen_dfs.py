@@ -218,6 +218,11 @@ def run(args):
     print_fn('Docking {}'.format( rsp.shape ))
     rsp = drop_dup_rows(rsp, print_fn=print_fn)
 
+    # Check that 'smiles' col exists
+    if 'SMILES' in rsp.columns:
+        rsp = rsp.rename(columns={'SMILES': 'smiles'})
+    assert 'smiles' not in rsp.columns, "Column 'smiles' must exists in the docking scores file.'
+
     print_fn('\nCanonicalize smiles ...')
     can_smi_vec = canon_smiles( rsp['smiles'], par_jobs=args['par_jobs'] )
     can_smi_vec = pd.Series(can_smi_vec)
