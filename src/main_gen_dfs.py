@@ -31,12 +31,17 @@ from ml.data import extract_subset_fea, extract_subset_fea_col_names
 from utils.smiles import canon_smiles
 
 # Features
-FEA_PATH = filepath/'../data/raw/features/BL1/ena+db.smi.desc.parquet' # BL1 (ENA+DB: ~305K)
-meta_cols = ['name', 'smiles']
+# FEA_PATH = filepath/'../data/raw/features/BL1/ena+db.smi.desc.parquet' # BL1 (ENA+DB: ~305K)
+# FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
+FEA_PATH = filepath/'../data/raw/features/BL2/BL2.TITLE.dsc.parquet'; meta_cols=['TITLE'] # BL2 (ENA+DB: ~305K)
+# meta_cols = ['name', 'smiles']
 
 # Docking
 SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
-SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
+# SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
+# SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
+# SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_SMILES.csv'
+SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_TITLE.csv'
 
 
 def parse_args(args):
@@ -211,6 +216,7 @@ def run(args):
     fea = load_data( fea_path )
     print_fn('Features {}'.format( fea.shape ))
     fea = drop_dup_rows(fea, print_fn=print_fn)
+    fea = fea.drop(columns='smiles') # TODO: take care of this
 
     # Docking scores
     print_fn('\nLoad docking scores ...')
@@ -218,24 +224,24 @@ def run(args):
     print_fn('Docking {}'.format( rsp.shape ))
     rsp = drop_dup_rows(rsp, print_fn=print_fn)
 
-    # Check that 'smiles' col exists
-    if 'SMILES' in rsp.columns:
-        rsp = rsp.rename(columns={'SMILES': 'smiles'})
-    assert 'smiles' not in rsp.columns, "Column 'smiles' must exists in the docking scores file."
+    # # Check that 'smiles' col exists
+    # if 'SMILES' in rsp.columns:
+    #     rsp = rsp.rename(columns={'SMILES': 'smiles'})
+    # assert 'smiles' in rsp.columns, "Column 'smiles' must exists in the docking scores file."
 
-    print_fn('\nCanonicalize smiles ...')
-    can_smi_vec = canon_smiles( rsp['smiles'], par_jobs=args['par_jobs'] )
-    can_smi_vec = pd.Series(can_smi_vec)
+    # print_fn('\nCanonicalize smiles ...')
+    # can_smi_vec = canon_smiles( rsp['smiles'], par_jobs=args['par_jobs'] )
+    # can_smi_vec = pd.Series(can_smi_vec)
 
-    # Save to file bad smiles (that were not canonicalized)
-    nan_ids = can_smi_vec.isna()
-    bad_smi = rsp[ nan_ids ]
-    if len(bad_smi)>0:
-        bad_smi.to_csv(outdir/'smi_canon_err.csv', index=False)
+    # # Save to file bad smiles (that were not canonicalized)
+    # nan_ids = can_smi_vec.isna()
+    # bad_smi = rsp[ nan_ids ]
+    # if len(bad_smi)>0:
+    #     bad_smi.to_csv(outdir/'smi_canon_err.csv', index=False)
 
-    # Keep the good (canonicalized) smiles
-    rsp['smiles'] = can_smi_vec
-    rsp = rsp[ ~nan_ids ].reset_index(drop=True)
+    # # Keep the good (canonicalized) smiles
+    # rsp['smiles'] = can_smi_vec
+    # rsp = rsp[ ~nan_ids ].reset_index(drop=True)
 
     print_fn( '\n{}'.format( rsp.columns.tolist() ))
     print_fn( '\n{}\n'.format( rsp.iloc[:3,:4] ))
@@ -243,15 +249,17 @@ def run(args):
     # -----------------------------------------    
     # Merge features with dock scores
     # -----------------------------------------    
-    unq_smiles = set( rsp['smiles'] ).intersection( set(fea['smiles']) )
-    print_fn( 'Unique smiles in rsp: {}'.format( rsp['smiles'].nunique() ))
-    print_fn( 'Unique smiles in fea: {}'.format( fea['smiles'].nunique() ))
-    print_fn( 'Intersect on smiles:  {}'.format( len(unq_smiles) ))
+    # merger = 'smiles'
+    merger = 'TITLE'
+    unq_smiles = set( rsp[merger] ).intersection( set(fea[merger]) )
+    print_fn( 'Unique {} in rsp: {}'.format( merger, rsp[merger].nunique() ))
+    print_fn( 'Unique {} in fea: {}'.format( merger, fea[merger].nunique() ))
+    print_fn( 'Intersect on {}:  {}'.format( merger, len(unq_smiles) ))
 
-    print_fn('\nMerge features with docking scores on smiles ...')
-    dd = pd.merge(rsp, fea, on='smiles', how='inner')
+    print_fn(f'\nMerge features with docking scores on {merger} ...')
+    dd = pd.merge(rsp, fea, on=merger, how='inner')
     print_fn('Merged {}'.format( dd.shape ))
-    print_fn('Unique smiles in final df: {}'.format( dd['smiles'].nunique() ))
+    print_fn('Unique {} in final df: {}'.format( merger, dd[merger].nunique() ))
     trg_names = rsp.columns[1:].tolist()
     del rsp, fea
 
