@@ -151,7 +151,7 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
         fea_cols_drop = extract_subset_fea_col_names(df, fea_list=fea_prfx_drop, fea_sep='.')
         data = df.drop( columns=fea_cols_drop )
         outpath_name = outdir/(fname+f'.{name}')
-        # data.to_parquet( str(outpath_name)+'.parquet' )
+        data.to_parquet( str(outpath_name)+'.parquet' )
         if to_csv:
             data.to_csv( str(outpath_name)+'.csv' , index=False )
         return data
