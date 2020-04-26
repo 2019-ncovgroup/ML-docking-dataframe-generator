@@ -208,7 +208,7 @@ def run(args):
     # -----------------------------------------    
     # Features (with smiles)
     print_fn('\nLoad features ...')
-    fea = load_data( FEA_PATH )
+    fea = load_data( fea_path )
     print_fn('Features {}'.format( fea.shape ))
     fea = drop_dup_rows(fea, print_fn=print_fn)
 
