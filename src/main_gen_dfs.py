@@ -221,7 +221,7 @@ def run(args):
     # Check that 'smiles' col exists
     if 'SMILES' in rsp.columns:
         rsp = rsp.rename(columns={'SMILES': 'smiles'})
-    assert 'smiles' not in rsp.columns, "Column 'smiles' must exists in the docking scores file.'
+    assert 'smiles' not in rsp.columns, "Column 'smiles' must exists in the docking scores file."
 
     print_fn('\nCanonicalize smiles ...')
     can_smi_vec = canon_smiles( rsp['smiles'], par_jobs=args['par_jobs'] )
