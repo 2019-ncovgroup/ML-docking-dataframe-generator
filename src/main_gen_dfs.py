@@ -33,8 +33,8 @@ from utils.smiles import canon_smiles
 # Features
 # FEA_PATH = filepath/'../data/raw/features/BL1/ena+db.smi.desc.parquet' # BL1 (ENA+DB: ~305K)
 # FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
-FEA_PATH = filepath/'../data/raw/features/BL2/BL2.TITLE.dsc.parquet'; meta_cols=['TITLE'] # BL2 (ENA+DB: ~305K)
-# meta_cols = ['name', 'smiles']
+FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
+meta_cols = ['TITLE', 'SMILES']
 
 # Docking
 SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
@@ -52,6 +52,8 @@ def parse_args(args):
                         help='Path to molecular features file (default: {FEA_PATH}).')
     parser.add_argument('-od', '--outdir', default=None, type=str,
                         help=f'Output dir (default: None).')
+    parser.add_argument('-f', '--fea_list', default=['dsc'], nargs='+', type=str,
+                        help=f'Prefix of feature column names (default: dsc).')
     parser.add_argument('--q_bins', default=0.025, type=float,
                         help=f'Quantile to bin the docking score (default: 0.025).')
     parser.add_argument('--par_jobs', default=1, type=int, 
@@ -61,12 +63,12 @@ def parse_args(args):
     return args
 
 
-def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
-              q_cls=0.025, bin_th=2.0, print_fn=print, outdir=Path('out'),
-              outfigs=Path('outfigs')):
+def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
+              score_name='reg', q_cls=0.025, bin_th=2.0, print_fn=print,
+              outdir=Path('out'), outfigs=Path('outfigs')):
     """ Generate a single ML dataframe for the specified target column trg_name.
     Args:
-        dd : dataframe with (molecules x targets) where the first col is smiles.
+        dd : dataframe with (molecules x targets) where the first col is TITLE
         trg_name : a column in dd representing the target 
         meta_cols : metadata columns to include in the dataframe
         score_name : rename the trg_name with score_name
@@ -80,9 +82,13 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     res = {}
     res['target'] = trg_name
 
-    # fea_list = ['mod', 'ecfp2', 'ecfp4', 'ecfp6']
-    fea_list = ['mod']
-    fea_cols = extract_subset_fea_col_names(dd, fea_list=fea_list, fea_sep='.')
+    meta_cols = set(meta_cols).intersection(set(dd.columns.tolist()))
+    meta_cols = [i for i in meta_cols]
+
+    # fea_list = ['dsc', 'ecfp2', 'ecfp4', 'ecfp6']
+    # fea_list = ['dsc']
+    fea_sep = '.'
+    fea_cols = extract_subset_fea_col_names(dd, fea_list=fea_list, fea_sep=fea_sep)
     cols = [trg_name] + meta_cols + fea_cols
     dd_trg = dd[ cols ]
     del dd
@@ -143,40 +149,68 @@ def gen_ml_df(dd, trg_name, meta_cols=['name', 'smiles'], score_name='reg',
     plt.savefig(outfigs/f'dock.score.bin.{fname}.png')
 
     # Separate the features
-    def extract_and_save_fea( df, fea, name, to_csv=False ):
+    def extract_and_save_fea( df, fea, to_csv=False ):
         """ Extract specific feature type (including metadata) and
         save to file. 
         """
+        name = fea
         fea_prfx_drop = [i for i in fea_list if i!=fea]
-        fea_cols_drop = extract_subset_fea_col_names(df, fea_list=fea_prfx_drop, fea_sep='.')
+        fea_cols_drop = extract_subset_fea_col_names(df, fea_list=fea_prfx_drop, fea_sep=fea_sep)
         data = df.drop( columns=fea_cols_drop )
         outpath_name = outdir/(fname+f'.{name}')
         data.to_parquet( str(outpath_name)+'.parquet' )
         if to_csv:
-            data.to_csv( str(outpath_name)+'.csv' , index=False )
+            data.to_csv( str(outpath_name)+'.csv', index=False )
         return data
 
     print_fn( f'Create and save dataframes ...' )
-    # to_csv = True
-    # extract_and_save_fea( dd_trg, fea='ecfp2', name='ecfp2', to_csv=to_csv );
-    # extract_and_save_fea( dd_trg, fea='ecfp4', name='ecfp4', to_csv=to_csv );
-    # extract_and_save_fea( dd_trg, fea='ecfp6', name='ecfp6', to_csv=to_csv );
-    dsc_df = extract_and_save_fea( dd_trg, fea='mod', name='dsc', to_csv=False )
+    for fea in fea_list:
+        # to_csv = True
+        # extract_and_save_fea( dd_trg, fea='ecfp2', to_csv=to_csv );
+        # extract_and_save_fea( dd_trg, fea='ecfp4', to_csv=to_csv );
+        # extract_and_save_fea( dd_trg, fea='ecfp6', to_csv=to_csv );
+        # dsc_df = extract_and_save_fea( dd_trg, fea='dsc', to_csv=False )
+        dsc_df = extract_and_save_fea( dd_trg, fea=fea, to_csv=False )
 
     # Scale desciptors and save scaler (save raw features rather the scaled)
-    from sklearn.preprocessing import StandardScaler
-    import joblib
-    xdata = extract_subset_fea(dsc_df, fea_list='mod', fea_sep='.')
-    cols = xdata.columns
-    sc = StandardScaler( with_mean=True, with_std=True )
-    sc.fit( xdata )
-    sc_outpath = outdir/(fname+f'.dsc.scaler.pkl')
-    joblib.dump(sc, sc_outpath)
-    # sc_ = joblib.load( sc_outpath ) 
+    if sum([True for i in fea_list if 'dsc' in i]):
+        dsc_prfx = ('dsc'+fea_sep)
+        from sklearn.preprocessing import StandardScaler
+        import joblib
+        xdata = extract_subset_fea(dsc_df, fea_list='dsc', fea_sep=fea_sep)
+        cols = xdata.columns
+        sc = StandardScaler( with_mean=True, with_std=True )
+        sc.fit( xdata )
+        sc_outpath = outdir/(fname+f'.dsc.scaler.pkl')
+        joblib.dump(sc, sc_outpath)
+        # sc_ = joblib.load( sc_outpath ) 
 
-    # We decided to remove the feature-specific prefixes 
-    dsc_df = dsc_df.rename(columns={c: c.split('mod.')[-1] if 'mod.' in c else c for c in dsc_df.columns})
-    dsc_df.to_csv( outdir/(fname+'.dsc.csv'), index=False)        
+        # We decided to remove the feature-specific prefixes 
+        dsc_df = dsc_df.rename(columns={c: c.split(dsc_prfx)[-1] if dsc_prfx in c else c for c in dsc_df.columns})
+        dsc_df.to_csv( outdir/(fname+'.dsc.csv'), index=False)        
+
+    try:
+        import lightgbm as lgb
+        from sklearn.model_selection import train_test_split
+        from datasplit.splitter import data_splitter
+        from ml.evals import calc_preds, calc_scores, dump_preds
+        ml_model_def = lgb.LGBMRegressor
+        ml_init_args = {'n_jobs': 8}
+        ml_fit_args = {'verbose': False, 'early_stopping_rounds': 10}
+        model = ml_model_def( **ml_init_args )
+        ydata = dd_trg['reg']
+        xdata = extract_subset_fea(dd_trg, fea_list=fea_list, fea_sep=fea_sep)
+        x_, xte, y_, yte = train_test_split(xdata, ydata, test_size=0.2)
+        xtr, xvl, ytr, yvl = train_test_split(x_, y_, test_size=0.2)
+        ml_fit_args['eval_set'] = (xvl, yvl)
+        model.fit(xtr, ytr, **ml_fit_args)
+        y_pred, y_true = calc_preds(model, x=xte, y=yte, mltype='reg')
+        te_scores = calc_scores(y_true=y_true, y_pred=y_pred, mltype='reg', metrics=None)
+        res['r2'] = te_scores['r2']
+        res['mae'] = te_scores['median_absolute_error']
+    except:
+        print('Could not import lightgbm.')
+
     return res
 
 
@@ -185,6 +219,7 @@ def run(args):
     scores_path = Path( args['scores_path'] ).resolve()
     fea_path = Path( args['fea_path'] ).resolve()
     par_jobs = int( args['par_jobs'] )
+    fea_list = args['fea_list']
     assert par_jobs > 0, f"The arg 'par_jobs' must be at least 1 (got {par_jobs})"
 
     if args['outdir'] is not None:
@@ -211,12 +246,11 @@ def run(args):
     # -----------------------------------------
     # Load data (features and docking scores)
     # -----------------------------------------    
-    # Features (with smiles)
+    # Features (with SMILES)
     print_fn('\nLoad features ...')
     fea = load_data( fea_path )
     print_fn('Features {}'.format( fea.shape ))
     fea = drop_dup_rows(fea, print_fn=print_fn)
-    fea = fea.drop(columns='smiles') # TODO: take care of this
 
     # Docking scores
     print_fn('\nLoad docking scores ...')
@@ -224,23 +258,23 @@ def run(args):
     print_fn('Docking {}'.format( rsp.shape ))
     rsp = drop_dup_rows(rsp, print_fn=print_fn)
 
-    # # Check that 'smiles' col exists
+    # # Check that 'SMILES' col exists
     # if 'SMILES' in rsp.columns:
-    #     rsp = rsp.rename(columns={'SMILES': 'smiles'})
-    # assert 'smiles' in rsp.columns, "Column 'smiles' must exists in the docking scores file."
+    #     rsp = rsp.rename(columns={'SMILES': 'SMILES'})
+    # assert 'SMILES' in rsp.columns, "Column 'SMILES' must exists in the docking scores file."
 
-    # print_fn('\nCanonicalize smiles ...')
-    # can_smi_vec = canon_smiles( rsp['smiles'], par_jobs=args['par_jobs'] )
+    # print_fn('\nCanonicalize SMILES ...')
+    # can_smi_vec = canon_SMILES( rsp['SMILES'], par_jobs=args['par_jobs'] )
     # can_smi_vec = pd.Series(can_smi_vec)
 
-    # # Save to file bad smiles (that were not canonicalized)
+    # # Save to file bad SMILES (that were not canonicalized)
     # nan_ids = can_smi_vec.isna()
     # bad_smi = rsp[ nan_ids ]
     # if len(bad_smi)>0:
     #     bad_smi.to_csv(outdir/'smi_canon_err.csv', index=False)
 
-    # # Keep the good (canonicalized) smiles
-    # rsp['smiles'] = can_smi_vec
+    # # Keep the good (canonicalized) SMILES
+    # rsp['SMILES'] = can_smi_vec
     # rsp = rsp[ ~nan_ids ].reset_index(drop=True)
 
     print_fn( '\n{}'.format( rsp.columns.tolist() ))
@@ -249,8 +283,9 @@ def run(args):
     # -----------------------------------------    
     # Merge features with dock scores
     # -----------------------------------------    
-    # merger = 'smiles'
+    # merger = 'SMILES'
     merger = 'TITLE'
+    assert merger in rsp.columns, f"Column '{merger}' must exist in the docking scores file."
     unq_smiles = set( rsp[merger] ).intersection( set(fea[merger]) )
     print_fn( 'Unique {} in rsp: {}'.format( merger, rsp[merger].nunique() ))
     print_fn( 'Unique {} in fea: {}'.format( merger, fea[merger].nunique() ))
@@ -265,9 +300,9 @@ def run(args):
 
     score_name = 'reg' # unified name for docking scores column in all output dfs
     bin_th = 2.0 # threshold value for the binner column (classifier)
-    kwargs = { 'dd': dd, 'meta_cols': meta_cols, 'score_name': score_name,
-               'q_cls': args['q_bins'], 'bin_th': bin_th, 'print_fn': print_fn,
-               'outdir': outdir, 'outfigs': outfigs }
+    kwargs = { 'dd': dd, 'meta_cols': meta_cols, 'fea_list': fea_list,
+               'score_name': score_name, 'q_cls': args['q_bins'], 'bin_th': bin_th,
+               'print_fn': print_fn, 'outdir': outdir, 'outfigs': outfigs }
 
     if par_jobs > 1:
         # https://joblib.readthedocs.io/en/latest/parallel.html
@@ -279,7 +314,8 @@ def run(args):
             res = gen_ml_df(trg_name=trg, **kwargs)
             results.append( res )
 
-    pd.DataFrame(results).to_csv( outdir/'dock.summary.csv', index=False )
+    results = np.round(pd.DataFrame(results), decimals=3)
+    results.to_csv( outdir/'dock.ml.baseline.csv', index=False )
 
     # --------------------------------------------------------
     print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))
