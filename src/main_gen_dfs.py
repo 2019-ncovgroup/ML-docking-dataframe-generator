@@ -165,12 +165,8 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
 
     print_fn( f'Create and save dataframes ...' )
     for fea in fea_list:
-        # to_csv = True
-        # extract_and_save_fea( dd_trg, fea='ecfp2', to_csv=to_csv );
-        # extract_and_save_fea( dd_trg, fea='ecfp4', to_csv=to_csv );
-        # extract_and_save_fea( dd_trg, fea='ecfp6', to_csv=to_csv );
-        # dsc_df = extract_and_save_fea( dd_trg, fea='dsc', to_csv=False )
-        dsc_df = extract_and_save_fea( dd_trg, fea=fea, to_csv=False )
+        to_csv = False if 'dsc' in fea else True
+        dsc_df = extract_and_save_fea( dd_trg, fea=fea, to_csv=to_csv )
 
     # Scale desciptors and save scaler (save raw features rather the scaled)
     if sum([True for i in fea_list if 'dsc' in i]):
@@ -185,7 +181,7 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
         joblib.dump(sc, sc_outpath)
         # sc_ = joblib.load( sc_outpath ) 
 
-        # We decided to remove the feature-specific prefixes 
+        # We decided to remove the feature-specific prefixes for descriptors
         dsc_df = dsc_df.rename(columns={c: c.split(dsc_prfx)[-1] if dsc_prfx in c else c for c in dsc_df.columns})
         dsc_df.to_csv( outdir/(fname+'.dsc.csv'), index=False)        
 
@@ -309,7 +305,7 @@ def run(args):
         results = Parallel(n_jobs=par_jobs, verbose=20)(
                 delayed(gen_ml_df)(trg_name=trg, **kwargs) for trg in trg_names )
     else:
-        results = [] # docking summary
+        results = [] # docking summary including ML baseline scores
         for trg in trg_names:
             res = gen_ml_df(trg_name=trg, **kwargs)
             results.append( res )
