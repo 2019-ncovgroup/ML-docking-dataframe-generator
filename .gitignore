@@ -1,11 +1,7 @@
-.*
-!.gitignore
-*__*
+!/.gitignore
+.ipynb_checkpoints
+__pycache__
 
-old/
+/out/
+/data/
 
-data/**
-!./data/raw/features/BL2/BL2.dsc.subset.parquet
-!./data/raw/raw_data/V5_docking_data_april_24/pivot_TITLE.subset.csv
-
-out/
