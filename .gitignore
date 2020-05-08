@@ -1,10 +1,11 @@
 .*
 !.gitignore
 *__*
+
 old/
-data/
+
+data/**
+!./data/raw/features/BL2/BL2.dsc.subset.parquet
+!./data/raw/raw_data/V5_docking_data_april_24/pivot_TITLE.subset.csv
+
 out/
-#data/raw/*.desc
-#data/raw/raw_data/*
-#data/raw/UC-molecules/
-#data/processed/
