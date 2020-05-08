@@ -15,7 +15,10 @@ $ mkdir -p data/raw/features
 
 Get the required data from Box (or Globus):
 - Docking scores from `19-nCoV/drug-screening/raw_data/<batch_name>` to `./data/raw/raw_data`
-- Features from `19-nCoV/drug-screening/features/<set_name>` to `./data/raw/features`
+- Features from `19-nCoV/drug-screening/features/<set_name>` to `./data/raw/features`.<br>
+  Specifically, choose one of the following (prefer the more recent BL versions):
+  1. 19-nCoV/drug-screening/features/BL1/ena+db.smi.desc.parquet
+  2. 19-nCoV/drug-screening/features/BL2/BL2.dsc.parquet
 <!-- Run script to canoncalize the SMILES. This will dump the original scores with the `smiles` column canonicalized into `./data/processed/V3_docking_data_april_9`. -->
 <!-- ```shell
 $ python canon_smiles.py --datapath data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv
