@@ -34,7 +34,7 @@ from utils.smiles import canon_smiles
 # FEA_PATH = filepath/'../data/raw/features/BL1/ena+db.smi.desc.parquet' # BL1 (ENA+DB: ~305K)
 # FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
 # FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
-FEA_PATH = filepath/'../sample_data/features/BL2.dsc.subset.parquet'
+FEA_PATH = filepath/'../sample_data/sample_features/BL2.dsc.subset.parquet'
 meta_cols = ['TITLE', 'SMILES']
 
 # Docking
@@ -43,7 +43,10 @@ SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
 # SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_SMILES.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_TITLE.csv'
-SCORES_PATH = filepath/'../sample_data/docking_scores/pivot_TITLE.subset.csv'
+SCORES_PATH = filepath/'../sample_data/sample_scores/pivot_TITLE.subset.csv'
+
+# Global outdir
+GOUT = filepath/'../out'
 
 
 def parse_args(args):
@@ -223,7 +226,7 @@ def run(args):
         outdir = Path( args['outdir'] ).resolve()
     else:
         batch_name = scores_path.parent.name
-        outdir = Path( filepath/'../out'/batch_name ).resolve()
+        outdir = Path( GOUT/batch_name ).resolve()
 
     outfigs = outdir/'figs'
     os.makedirs(outdir, exist_ok=True)
