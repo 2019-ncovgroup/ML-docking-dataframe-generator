@@ -33,7 +33,8 @@ from utils.smiles import canon_smiles
 # Features
 # FEA_PATH = filepath/'../data/raw/features/BL1/ena+db.smi.desc.parquet' # BL1 (ENA+DB: ~305K)
 # FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
-FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
+# FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
+FEA_PATH = filepath/'../sample_data/features/BL2.dsc.subset.parquet'
 meta_cols = ['TITLE', 'SMILES']
 
 # Docking
@@ -41,7 +42,8 @@ SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
 # SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_SMILES.csv'
-SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_TITLE.csv'
+# SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_TITLE.csv'
+SCORES_PATH = filepath/'../sample_data/docking_scores/pivot_TITLE.subset.csv'
 
 
 def parse_args(args):
@@ -86,7 +88,6 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
     meta_cols = [i for i in meta_cols]
 
     # fea_list = ['dsc', 'ecfp2', 'ecfp4', 'ecfp6']
-    # fea_list = ['dsc']
     fea_sep = '.'
     fea_cols = extract_subset_fea_col_names(dd, fea_list=fea_list, fea_sep=fea_sep)
     cols = [trg_name] + meta_cols + fea_cols
