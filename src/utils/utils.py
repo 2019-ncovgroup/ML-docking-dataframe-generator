@@ -10,6 +10,7 @@ from pathlib import Path
 # import argparse
 from pprint import pprint, pformat
 # from glob import glob
+import pickle
 
 # import matplotlib
 # matplotlib.use('Agg')
@@ -45,6 +46,8 @@ def load_data( datapath, file_format=None ):
         data = pd.read_hdf5( datapath ) 
     elif file_format=='csv':
         data = pd.read_csv( datapath ) 
+    elif file_format=='pkl':
+        data = pickle.load( images, open( datapath, 'rb' ) )
     else:
         try:
             data = pd.read_csv( datapath ) 
