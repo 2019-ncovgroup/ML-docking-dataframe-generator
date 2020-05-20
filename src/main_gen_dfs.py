@@ -56,15 +56,15 @@ GOUT = filepath/'../out'
 
 
 def parse_args(args):
-    parser = argparse.ArgumentParser(description='Generate ML dataframes from molecular features and docking scores.')
+    parser = argparse.ArgumentParser(description='Generate ML datasets from molecular features and docking scores.')
     parser.add_argument('-sp', '--scores_path', default=str(SCORES_PATH), type=str,
-                        help='Path to docking score resutls file (default: {SCORES_PATH}).')
+                        help=f'Path to docking scores file (default: {SCORES_PATH}).')
     parser.add_argument('--fea_path', default=str(FEA_PATH), type=str,
-                        help='Path to molecular features file (default: {FEA_PATH}).')
+                        help=f'Path to molecular features file (default: {FEA_PATH}).')
     parser.add_argument('--img_path', default=None, type=str,
-                        help='Path to images of molecules file (default: None.')
+                        help='Path to molecule images file (default: None.')
     parser.add_argument('-od', '--outdir', default=None, type=str,
-                        help=f'Output dir (default: None).')
+                        help=f'Output dir (default: {GOUT}/<batch_name>).')
     parser.add_argument('-f', '--fea_list', default=['dsc'], nargs='+', type=str,
                         help=f'Prefix of feature column names (default: dsc).')
     parser.add_argument('--q_bins', default=0.025, type=float,
@@ -118,24 +118,19 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
     # Rename the scores col
     dd_trg = dd_trg.rename( columns={trg_name: score_name} )
 
-    # File name
-    fname = 'ml.' + trg_name
-    
     # Transform scores to positive
     dd_trg[score_name] = abs( np.clip(dd_trg[score_name], a_min=None, a_max=0) )
     res['min'], res['max'] = dd_trg[score_name].min(), dd_trg[score_name].max()
     bins = 50
     """
     p = dd[score_name].hist(bins=bins);
-    p.set_title(f'Scores Clipped to 0: {fname}');
+    p.set_title(f'Scores Clipped to 0: {trg_name}');
     p.set_ylabel('Count'); p.set_xlabel('Docking Score');
-    plt.savefig(outfigs/f'dock_scores_clipped_{fname}.png');
+    plt.savefig(outfigs/f'dock_scores_clipped_{trg_name}.png');
     """
     
     # Add binner
-    dd_trg =  add_binner(dd_trg, score_name=score_name, bin_th=bin_th)
-    # binner = [1 if x>=bin_th else 0 for x in dd_trg[score_name]]
-    # dd_trg.insert(loc=1, column='binner', value=binner)
+    dd_trg = add_binner(dd_trg, score_name=score_name, bin_th=bin_th)
 
     # -----------------------------------------    
     # Create cls col
@@ -162,30 +157,29 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
 
     fig, ax = plt.subplots()
     plt.hist(dd_trg[score_name], bins=bins, density=False, facecolor='b', alpha=0.5)
-    plt.title(f'Scores Clipped to 0: {fname}');
+    plt.title(f'Scores Clipped to 0: {trg_name}');
     plt.ylabel('Count'); plt.xlabel('Docking Score');
     plt.plot(x, y, 'r--', alpha=0.7, label=f'{q_cls}-th quantile')
     plt.grid(True)
-    plt.savefig(outfigs/f'dock.score.bin.{fname}.png')
+    plt.savefig(outfigs/f'dock.score.bin.{trg_name}.png')
 
     # Separate the features
     def extract_and_save_fea( df, fea, to_csv=False ):
         """ Extract specific feature type (including metadata) and
         save to file. 
         """
-        name = fea
         fea_prfx_drop = [i for i in fea_list if i!=fea]
         fea_cols_drop = extract_subset_fea_col_names(df, fea_list=fea_prfx_drop, fea_sep=fea_sep)
         data = df.drop( columns=fea_cols_drop )
-        outpath_name = outdir/('DIR.ml.'+trg_name)/(fname+f'.{name}')
-        data.to_parquet( str(outpath_name)+'.parquet' )
+        outpath = outdir/f'DIR.ml.{trg_name}'/f'ml.{trg_name}.{fea}'
+        data.to_parquet( str(outpath)+'.parquet' )
         if to_csv:
-            data.to_csv( str(outpath_name)+'.csv', index=False )
+            data.to_csv( str(outpath)+'.csv', index=False )
         return data
 
     print_fn( f'Create and save dataframes ...' )
     for fea in fea_list:
-        to_csv = False if 'dsc' in fea else True
+        to_csv = False if 'dsc' in fea else True # don't save dsc to csv yet
         dsc_df = extract_and_save_fea( dd_trg, fea=fea, to_csv=to_csv )
 
     # Scale desciptors and save scaler (save raw features rather the scaled)
@@ -196,14 +190,14 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
         # cols = xdata.columns
         # sc = StandardScaler( with_mean=True, with_std=True )
         # sc.fit( xdata )
-        # sc_outpath = outdir/(fname+f'.dsc.scaler.pkl')
+        # sc_outpath = outdir/f'ml.{trg_name}.dsc.scaler.pkl'
         # joblib.dump(sc, sc_outpath)
         # # sc_loaded = joblib.load( sc_outpath ) 
 
-        # We decided to remove the feature-specific prefixes for descriptors
-        dsc_prfx = ('dsc'+fea_sep)
+        # We decided not to prefix descriptors in csv file
+        dsc_prfx = 'dsc'+fea_sep
         dsc_df = dsc_df.rename(columns={c: c.split(dsc_prfx)[-1] if dsc_prfx in c else c for c in dsc_df.columns})
-        dsc_df.to_csv( outdir/('DIR.ml.'+trg_name)/(fname+'.dsc.csv'), index=False)        
+        dsc_df.to_csv( outdir/f'DIR.ml.{trg_name}'/f'ml.{trg_name}.dsc.csv', index=False)        
 
     try:
         # Train LGBM as a baseline model
@@ -231,17 +225,14 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
     return res
 
 
-def gen_ml_images(images, rsp, trg_name, meta_cols=['TITLE', 'SMILES'],
-              score_name='reg', q_cls=0.025, bin_th=2.0, print_fn=print,
-              outdir=Path('out'), outfigs=Path('outfigs')):
+def gen_ml_images(images, rsp, trg_name, score_name='reg', print_fn=print,
+                  outdir=Path('out')):
     """ Generate a single ML dataframe for the specified target column trg_name.
     Args:
         images : dataframe with (molecules x targets) where the first col is TITLE
         rsp : 
         trg_name : a column in dd representing the target 
     """
-    print_fn( f'Processing {trg_name} ...' )
-
     # Find intersect on TITLE
     img_title_names = [ ii['TITLE'] for ii in images ]
     titles = set(rsp['TITLE'].values).intersection(set(img_title_names))
@@ -251,13 +242,10 @@ def gen_ml_images(images, rsp, trg_name, meta_cols=['TITLE', 'SMILES'],
     images = [ images[ii] for ii in titles ]
     
     # Dump images
-    import pdb; pdb.set_trace()
-    # fname = 'ml.' + trg_name
-    # outpath_name = outdir/f'DIR.ml.{trg_name}'/f'ml.{trg_name}.dct.images.pkl'
     trg_outdir = outdir/f'DIR.ml.{trg_name}'
-    outpath_name = trg_outdir/f'ml.{trg_name}.dct.images.pkl'
+    outpath = trg_outdir/f'ml.{trg_name}.dct.images.pkl'
     os.makedirs(trg_outdir, exist_ok=True)
-    pickle.dump( images, open( outpath_name, 'wb' ) )
+    pickle.dump( images, open(outpath, 'wb') )
 
 
 def run(args):
@@ -286,10 +274,10 @@ def run(args):
     print_fn(f'File path: {filepath}')
     print_fn(f'\n{pformat(args)}')
     
-    print_fn('\nDocking scores path {}'.format( scores_path ))
-    print_fn('Features path       {}'.format( fea_path ))
-    print_fn('Images path         {}'.format( img_path ))
-    print_fn('Outdir path         {}'.format( outdir ))
+    print_fn('\nDocking scores {}'.format( scores_path ))
+    print_fn('Features       {}'.format( fea_path ))
+    print_fn('Images         {}'.format( img_path ))
+    print_fn('Outdir         {}'.format( outdir ))
 
     # -----------------------------------------
     # Load data (features and docking scores)
@@ -302,8 +290,12 @@ def run(args):
 
     # Get target names
     trg_names = rsp.columns[1:].tolist()
-
+    
+    # -----------------------------------------    
+    # Process Images
+    # -----------------------------------------    
     # Load images
+    # import pdb; pdb.set_trace()
     if img_path is not None:
         print_fn('\nLoad images ...')
         images = load_data( img_path )
@@ -313,7 +305,6 @@ def run(args):
         kwargs = { 'images': images, 'rsp': rsp,
                    'print_fn': print_fn, 'outdir': outdir }
 
-        import pdb; pdb.set_trace()
         if par_jobs > 1:
             Parallel(n_jobs=par_jobs, verbose=20)(
                     delayed(gen_ml_images)(
@@ -324,6 +315,7 @@ def run(args):
     # -----------------------------------------------------
 
     # Features (with SMILES)
+    # import pdb; pdb.set_trace()
     print_fn('\nLoad features ...')
     fea = load_data( fea_path )
     print_fn('Features {}'.format( fea.shape ))
@@ -335,8 +327,7 @@ def run(args):
     # -----------------------------------------    
     # Merge features with dock scores
     # -----------------------------------------    
-    # merger = 'SMILES'
-    merger = 'TITLE'
+    merger = 'TITLE' # we used 'SMILES' before
     assert merger in rsp.columns, f"Column '{merger}' must exist in the docking scores file."
     unq_smiles = set( rsp[merger] ).intersection( set(fea[merger]) )
     print_fn( 'Unique {} in rsp: {}'.format( merger, rsp[merger].nunique() ))
@@ -364,8 +355,9 @@ def run(args):
             res = gen_ml_df(trg_name=trg, **kwargs)
             results.append( res )
 
+    # TODO consider to generate baselines using ecfp features as well
     results = np.round(pd.DataFrame(results), decimals=3)
-    results.to_csv( outdir/'dock.ml.baseline.csv', index=False )
+    results.to_csv( outdir/'dock.ml.dsc.baseline.csv', index=False )
 
     # --------------------------------------------------------
     print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))
