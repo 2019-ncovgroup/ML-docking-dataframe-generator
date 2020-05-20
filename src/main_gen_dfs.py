@@ -2,6 +2,8 @@
 This script parses docking score results and merges the
 scores of each target with mulitple types of molecular features.
 An ML dataframe, containing a single feature type is saved into a file.
+
+For parellel processing we use: joblib.readthedocs.io/en/latest/parallel.html
 """
 import warnings
 warnings.filterwarnings('ignore')
@@ -12,6 +14,7 @@ from pathlib import Path
 from time import time
 import argparse
 from pprint import pformat
+import pickle
 
 from joblib import Parallel, delayed
 
@@ -37,6 +40,9 @@ from utils.smiles import canon_smiles
 FEA_PATH = filepath/'../sample_data/sample_features/BL2.dsc.subset.parquet'
 meta_cols = ['TITLE', 'SMILES']
 
+# IMG_PATH
+IMG_PATH = filepath/'../data/raw/features/BL2_test_images/images.ids.0-30000.pkl'
+
 # Docking
 SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
 # SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
@@ -55,6 +61,8 @@ def parse_args(args):
                         help='Path to docking score resutls file (default: {SCORES_PATH}).')
     parser.add_argument('--fea_path', default=str(FEA_PATH), type=str,
                         help='Path to molecular features file (default: {FEA_PATH}).')
+    parser.add_argument('--img_path', default=str(IMG_PATH), type=str,
+                        help='Path to images of molecules file (default: {IMG_PATH}).')
     parser.add_argument('-od', '--outdir', default=None, type=str,
                         help=f'Output dir (default: None).')
     parser.add_argument('-f', '--fea_list', default=['dsc'], nargs='+', type=str,
@@ -66,6 +74,13 @@ def parse_args(args):
     # args, other_args = parser.parse_known_args( args )
     args= parser.parse_args( args )
     return args
+
+
+def add_binner(dd_trg, score_name='reg', bin_th=2.0):
+    """ Add 'binner' col to train classifier for filtering out non-dockers. """
+    binner = [1 if x>=bin_th else 0 for x in dd_trg[score_name]]
+    dd_trg.insert(loc=1, column='binner', value=binner)
+    return dd_trg
 
 
 def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
@@ -118,12 +133,13 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
     """
     
     # Add binner
-    binner = [1 if x>=bin_th else 0 for x in dd_trg[score_name]]
-    dd_trg.insert(loc=1, column='binner', value=binner)
+    dd_trg =  add_binner(dd_trg, score_name=score_name, bin_th=bin_th)
+    # binner = [1 if x>=bin_th else 0 for x in dd_trg[score_name]]
+    # dd_trg.insert(loc=1, column='binner', value=binner)
 
     # -----------------------------------------    
-    # Create binner
-    # -----------------------------------------      
+    # Create cls col
+    # ---------------
     # Find quantile value
     if dd_trg[score_name].min() >= 0: # if scores were transformed to >=0
         q_cls = 1.0 - q_cls
@@ -161,7 +177,7 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
         fea_prfx_drop = [i for i in fea_list if i!=fea]
         fea_cols_drop = extract_subset_fea_col_names(df, fea_list=fea_prfx_drop, fea_sep=fea_sep)
         data = df.drop( columns=fea_cols_drop )
-        outpath_name = outdir/(fname+f'.{name}')
+        outpath_name = outdir/('DIR.ml.'+trg_name)/(fname+f'.{name}')
         data.to_parquet( str(outpath_name)+'.parquet' )
         if to_csv:
             data.to_csv( str(outpath_name)+'.csv', index=False )
@@ -174,22 +190,23 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
 
     # Scale desciptors and save scaler (save raw features rather the scaled)
     if sum([True for i in fea_list if 'dsc' in i]):
-        dsc_prfx = ('dsc'+fea_sep)
-        from sklearn.preprocessing import StandardScaler
-        import joblib
-        xdata = extract_subset_fea(dsc_df, fea_list='dsc', fea_sep=fea_sep)
-        cols = xdata.columns
-        sc = StandardScaler( with_mean=True, with_std=True )
-        sc.fit( xdata )
-        sc_outpath = outdir/(fname+f'.dsc.scaler.pkl')
-        joblib.dump(sc, sc_outpath)
-        # sc_ = joblib.load( sc_outpath ) 
+        # from sklearn.preprocessing import StandardScaler
+        # import joblib
+        # xdata = extract_subset_fea(dsc_df, fea_list='dsc', fea_sep=fea_sep)
+        # cols = xdata.columns
+        # sc = StandardScaler( with_mean=True, with_std=True )
+        # sc.fit( xdata )
+        # sc_outpath = outdir/(fname+f'.dsc.scaler.pkl')
+        # joblib.dump(sc, sc_outpath)
+        # # sc_loaded = joblib.load( sc_outpath ) 
 
         # We decided to remove the feature-specific prefixes for descriptors
+        dsc_prfx = ('dsc'+fea_sep)
         dsc_df = dsc_df.rename(columns={c: c.split(dsc_prfx)[-1] if dsc_prfx in c else c for c in dsc_df.columns})
-        dsc_df.to_csv( outdir/(fname+'.dsc.csv'), index=False)        
+        dsc_df.to_csv( outdir/('DIR.ml.'+trg_name)/(fname+'.dsc.csv'), index=False)        
 
     try:
+        # Train LGBM as a baseline model
         import lightgbm as lgb
         from sklearn.model_selection import train_test_split
         from datasplit.splitter import data_splitter
@@ -214,10 +231,40 @@ def gen_ml_df(dd, trg_name, meta_cols=['TITLE', 'SMILES'], fea_list=['dsc'],
     return res
 
 
+def gen_ml_images(images, rsp, trg_name, meta_cols=['TITLE', 'SMILES'],
+              score_name='reg', q_cls=0.025, bin_th=2.0, print_fn=print,
+              outdir=Path('out'), outfigs=Path('outfigs')):
+    """ Generate a single ML dataframe for the specified target column trg_name.
+    Args:
+        images : dataframe with (molecules x targets) where the first col is TITLE
+        rsp : 
+        trg_name : a column in dd representing the target 
+    """
+    print_fn( f'Processing {trg_name} ...' )
+
+    # Find intersect on TITLE
+    img_title_names = [ ii['TITLE'] for ii in images ]
+    titles = set(rsp['TITLE'].values).intersection(set(img_title_names))
+
+    # Keep images with specific TITLE
+    images = { ii['TITLE']: ii for ii in images }
+    images = [ images[ii] for ii in titles ]
+    
+    # Dump images
+    import pdb; pdb.set_trace()
+    # fname = 'ml.' + trg_name
+    # outpath_name = outdir/f'DIR.ml.{trg_name}'/f'ml.{trg_name}.dct.images.pkl'
+    trg_outdir = outdir/f'DIR.ml.{trg_name}'
+    outpath_name = trg_outdir/f'ml.{trg_name}.dct.images.pkl'
+    os.makedirs(trg_outdir, exist_ok=True)
+    pickle.dump( images, open( outpath_name, 'wb' ) )
+
+
 def run(args):
     t0=time()
     scores_path = Path( args['scores_path'] ).resolve()
     fea_path = Path( args['fea_path'] ).resolve()
+    img_path = Path( args['img_path'] ).resolve()
     par_jobs = int( args['par_jobs'] )
     fea_list = args['fea_list']
     assert par_jobs > 0, f"The arg 'par_jobs' must be at least 1 (got {par_jobs})"
@@ -241,22 +288,44 @@ def run(args):
     
     print_fn('\nDocking scores path {}'.format( scores_path ))
     print_fn('Features path       {}'.format( fea_path ))
+    print_fn('Images path         {}'.format( img_path ))
     print_fn('Outdir path         {}'.format( outdir ))
 
     # -----------------------------------------
     # Load data (features and docking scores)
     # -----------------------------------------    
-    # Features (with SMILES)
-    print_fn('\nLoad features ...')
-    fea = load_data( fea_path )
-    print_fn('Features {}'.format( fea.shape ))
-    fea = drop_dup_rows(fea, print_fn=print_fn)
-
     # Docking scores
     print_fn('\nLoad docking scores ...')
     rsp = load_data( args['scores_path'] )
     print_fn('Docking {}'.format( rsp.shape ))
     rsp = drop_dup_rows(rsp, print_fn=print_fn)
+
+    # Get target names
+    trg_names = rsp.columns[1:].tolist()
+
+    # Load images
+    print_fn('\nLoad images ...')
+    images = load_data( img_path )
+    print_fn('Images {} {}'.format( type(images), len(images) ))
+
+    # Keep intersect on samples (TITLE)
+    kwargs = { 'images': images, 'rsp': rsp, 'print_fn': print_fn, 'outdir': outdir }
+
+    import pdb; pdb.set_trace()
+    if par_jobs > 1:
+        Parallel(n_jobs=par_jobs, verbose=20)(
+                delayed(gen_ml_images)(
+                    trg_name=trg, **kwargs) for trg in trg_names )
+    else:
+        for trg in trg_names:
+            gen_ml_images(trg_name=trg, **kwargs)
+    # -----------------------------------------------------
+
+    # Features (with SMILES)
+    print_fn('\nLoad features ...')
+    fea = load_data( fea_path )
+    print_fn('Features {}'.format( fea.shape ))
+    fea = drop_dup_rows(fea, print_fn=print_fn)
 
     # # Check that 'SMILES' col exists
     # if 'SMILES' in rsp.columns:
@@ -295,7 +364,6 @@ def run(args):
     dd = pd.merge(rsp, fea, on=merger, how='inner')
     print_fn('Merged {}'.format( dd.shape ))
     print_fn('Unique {} in final df: {}'.format( merger, dd[merger].nunique() ))
-    trg_names = rsp.columns[1:].tolist()
     del rsp, fea
 
     score_name = 'reg' # unified name for docking scores column in all output dfs
@@ -305,7 +373,6 @@ def run(args):
                'print_fn': print_fn, 'outdir': outdir, 'outfigs': outfigs }
 
     if par_jobs > 1:
-        # https://joblib.readthedocs.io/en/latest/parallel.html
         results = Parallel(n_jobs=par_jobs, verbose=20)(
                 delayed(gen_ml_df)(trg_name=trg, **kwargs) for trg in trg_names )
     else:

@@ -47,7 +47,7 @@ def load_data( datapath, file_format=None ):
     elif file_format=='csv':
         data = pd.read_csv( datapath ) 
     elif file_format=='pkl':
-        data = pickle.load( images, open( datapath, 'rb' ) )
+        data = pickle.load( open(datapath, 'rb') )
     else:
         try:
             data = pd.read_csv( datapath ) 
