@@ -41,7 +41,7 @@ FEA_PATH = filepath/'../sample_data/sample_features/BL2.dsc.subset.parquet'
 meta_cols = ['TITLE', 'SMILES']
 
 # IMG_PATH
-IMG_PATH = filepath/'../data/raw/features/BL2_test_images/images.ids.0-30000.pkl'
+# IMG_PATH = filepath/'../data/raw/features/BL2_test_images/images.ids.0-30000.pkl'
 
 # Docking
 SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
@@ -61,8 +61,8 @@ def parse_args(args):
                         help='Path to docking score resutls file (default: {SCORES_PATH}).')
     parser.add_argument('--fea_path', default=str(FEA_PATH), type=str,
                         help='Path to molecular features file (default: {FEA_PATH}).')
-    parser.add_argument('--img_path', default=str(IMG_PATH), type=str,
-                        help='Path to images of molecules file (default: {IMG_PATH}).')
+    parser.add_argument('--img_path', default=None, type=str,
+                        help='Path to images of molecules file (default: None.')
     parser.add_argument('-od', '--outdir', default=None, type=str,
                         help=f'Output dir (default: None).')
     parser.add_argument('-f', '--fea_list', default=['dsc'], nargs='+', type=str,
@@ -264,7 +264,7 @@ def run(args):
     t0=time()
     scores_path = Path( args['scores_path'] ).resolve()
     fea_path = Path( args['fea_path'] ).resolve()
-    img_path = Path( args['img_path'] ).resolve()
+    img_path = None if args['img_path'] is None else Path( args['img_path'] ).resolve()
     par_jobs = int( args['par_jobs'] )
     fea_list = args['fea_list']
     assert par_jobs > 0, f"The arg 'par_jobs' must be at least 1 (got {par_jobs})"
@@ -304,21 +304,23 @@ def run(args):
     trg_names = rsp.columns[1:].tolist()
 
     # Load images
-    print_fn('\nLoad images ...')
-    images = load_data( img_path )
-    print_fn('Images {} {}'.format( type(images), len(images) ))
+    if img_path is not None:
+        print_fn('\nLoad images ...')
+        images = load_data( img_path )
+        print_fn('Images {} {}'.format( type(images), len(images) ))
 
-    # Keep intersect on samples (TITLE)
-    kwargs = { 'images': images, 'rsp': rsp, 'print_fn': print_fn, 'outdir': outdir }
+        # Keep intersect on samples (TITLE)
+        kwargs = { 'images': images, 'rsp': rsp,
+                   'print_fn': print_fn, 'outdir': outdir }
 
-    import pdb; pdb.set_trace()
-    if par_jobs > 1:
-        Parallel(n_jobs=par_jobs, verbose=20)(
-                delayed(gen_ml_images)(
-                    trg_name=trg, **kwargs) for trg in trg_names )
-    else:
-        for trg in trg_names:
-            gen_ml_images(trg_name=trg, **kwargs)
+        import pdb; pdb.set_trace()
+        if par_jobs > 1:
+            Parallel(n_jobs=par_jobs, verbose=20)(
+                    delayed(gen_ml_images)(
+                        trg_name=trg, **kwargs) for trg in trg_names )
+        else:
+            for trg in trg_names:
+                gen_ml_images(trg_name=trg, **kwargs)
     # -----------------------------------------------------
 
     # Features (with SMILES)
@@ -326,25 +328,6 @@ def run(args):
     fea = load_data( fea_path )
     print_fn('Features {}'.format( fea.shape ))
     fea = drop_dup_rows(fea, print_fn=print_fn)
-
-    # # Check that 'SMILES' col exists
-    # if 'SMILES' in rsp.columns:
-    #     rsp = rsp.rename(columns={'SMILES': 'SMILES'})
-    # assert 'SMILES' in rsp.columns, "Column 'SMILES' must exists in the docking scores file."
-
-    # print_fn('\nCanonicalize SMILES ...')
-    # can_smi_vec = canon_SMILES( rsp['SMILES'], par_jobs=args['par_jobs'] )
-    # can_smi_vec = pd.Series(can_smi_vec)
-
-    # # Save to file bad SMILES (that were not canonicalized)
-    # nan_ids = can_smi_vec.isna()
-    # bad_smi = rsp[ nan_ids ]
-    # if len(bad_smi)>0:
-    #     bad_smi.to_csv(outdir/'smi_canon_err.csv', index=False)
-
-    # # Keep the good (canonicalized) SMILES
-    # rsp['SMILES'] = can_smi_vec
-    # rsp = rsp[ ~nan_ids ].reset_index(drop=True)
 
     print_fn( '\n{}'.format( rsp.columns.tolist() ))
     print_fn( '\n{}\n'.format( rsp.iloc[:3,:4] ))
