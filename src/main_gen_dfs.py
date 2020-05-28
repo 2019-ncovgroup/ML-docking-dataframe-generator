@@ -321,7 +321,7 @@ def run(args):
     rsp = drop_dup_rows(rsp, print_fn=print_fn)
 
     # Get target names
-    trg_names = rsp.columns[1:].tolist()
+    trg_names = rsp.columns[1:].tolist()[:2]
 
 
     # -----------------------------------------    
@@ -344,9 +344,6 @@ def run(args):
     # -----------------------------------------------------
     
 
-=======
-    
->>>>>>> ce23d27e671d0c4400c45534f6a48ffa0baec0f7
     # -----------------------------------------    
     # Process Images
     # -----------------------------------------    
@@ -372,7 +369,6 @@ def run(args):
 
 
     # Features (with SMILES)
-    # import pdb; pdb.set_trace()
     print_fn('\nLoad features ...')
     fea = load_data( fea_path )
     print_fn('Features {}'.format( fea.shape ))
@@ -403,6 +399,7 @@ def run(args):
                'score_name': score_name, 'q_cls': args['q_bins'], 'bin_th': bin_th,
                'print_fn': print_fn, 'outdir': outdir, 'outfigs': outfigs }
 
+    # import pdb; pdb.set_trace()
     if par_jobs > 1:
         results = Parallel(n_jobs=par_jobs, verbose=20)(
                 delayed(gen_ml_df)(trg_name=trg, **kwargs) for trg in trg_names )
