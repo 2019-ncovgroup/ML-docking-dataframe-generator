@@ -12,20 +12,20 @@ echo "Process dsc ..."
 python src/main_gen_dfs.py --scores_path $SCORES_PATH \
     --fea_path $DATA_DIR/dsc.ids.0-30000.parquet --fea_list dsc \
     --img_path $DATA_DIR/images.ids.0-30000.pkl \
-    --outdir ./out/test_images --par_jobs $JOBS
+    --outdir ./out/test_images_and_others --par_jobs $JOBS
 
 echo "Process ecfp2 ..."
 python src/main_gen_dfs.py --scores_path $SCORES_PATH \
     --fea_path $DATA_DIR/ecfp2.ids.0-30000.parquet --fea_list ecfp2 \
-    --outdir ./out/test_images --par_jobs $JOBS
+    --outdir ./out/test_images_and_others --par_jobs $JOBS
 
 echo "Process ecfp4 ..."
 python src/main_gen_dfs.py --scores_path $SCORES_PATH \
     --fea_path $DATA_DIR/ecfp4.ids.0-30000.parquet --fea_list ecfp4 \
-    --outdir ./out/test_images --par_jobs $JOBS
+    --outdir ./out/test_images_and_others --par_jobs $JOBS
 
 echo "Process ecfp6 ..."
 python src/main_gen_dfs.py --scores_path $SCORES_PATH \
     --fea_path $DATA_DIR/ecfp6.ids.0-30000.parquet --fea_list ecfp6 \
-    --outdir ./out/test_images --par_jobs $JOBS
+    --outdir ./out/test_images_and_others --par_jobs $JOBS
 

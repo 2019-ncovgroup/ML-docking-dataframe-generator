@@ -248,6 +248,38 @@ def gen_ml_images(images, rsp, trg_name, score_name='reg', print_fn=print,
     pickle.dump( images, open(outpath, 'wb') )
 
 
+def dump_single_trg(rsp, trg_name, meta_cols=['TITLE', 'SMILES'],
+              score_name='reg', q_cls=0.025, print_fn=print,
+              outdir=Path('out')):
+    """ Dump docking scores of the specified target. """
+    meta_cols = set(meta_cols).intersection(set(rsp.columns.tolist()))
+    meta_cols = [i for i in meta_cols]
+
+    cols = [trg_name] + meta_cols
+    dd_trg = rsp[ cols ]; del rsp
+
+    # Drop NaN scores
+    dd_trg = dd_trg[ ~dd_trg[trg_name].isna() ].reset_index(drop=True)
+
+    # Rename the scores col
+    dd_trg = dd_trg.rename( columns={trg_name: 'dock'} )
+    dd_trg[score_name] = dd_trg['dock']
+
+    # Re-org cols
+    first_cols = ['dock', score_name]
+    cols = first_cols + [i for i in dd_trg.columns.tolist() if i not in first_cols]
+    dd_trg = dd_trg[cols]
+
+    # Transform scores to positive
+    dd_trg[score_name] = abs( np.clip(dd_trg[score_name], a_min=None, a_max=0) )
+    
+    # Save
+    trg_outdir = outdir/f'DIR.ml.{trg_name}'
+    outpath = trg_outdir/f'docks.df.{trg_name}.csv'
+    os.makedirs(trg_outdir, exist_ok=True)
+    dd_trg.to_csv(outpath, index=False)
+
+
 def run(args):
     t0=time()
     scores_path = Path( args['scores_path'] ).resolve()
@@ -290,7 +322,28 @@ def run(args):
 
     # Get target names
     trg_names = rsp.columns[1:].tolist()
+
+
+    # -----------------------------------------    
+    # Dump docks of each trg to separate file
+    # -----------------------------------------    
+    score_name = 'reg' # unified name for docking scores column in all output dfs
+    bin_th = 2.0 # threshold value for the binner column (classifier)
+    kwargs = { 'rsp': rsp, 'meta_cols': meta_cols,
+               'score_name': score_name, 'q_cls': args['q_bins'],
+               'print_fn': print_fn, 'outdir': outdir }
+
+    # import pdb; pdb.set_trace()
+    if par_jobs > 1:
+        results = Parallel(n_jobs=par_jobs, verbose=20)(
+                delayed(dump_single_trg)(
+                    trg_name=trg, **kwargs) for trg in trg_names )
+    else:
+        for trg in trg_names:
+            dump_single_trg( trg_name=trg, **kwargs )
+    # -----------------------------------------------------
     
+
     # -----------------------------------------    
     # Process Images
     # -----------------------------------------    
@@ -313,6 +366,7 @@ def run(args):
             for trg in trg_names:
                 gen_ml_images(trg_name=trg, **kwargs)
     # -----------------------------------------------------
+
 
     # Features (with SMILES)
     # import pdb; pdb.set_trace()
