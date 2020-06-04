@@ -45,11 +45,11 @@ $ python src/main_gen_dfs.py --scores_path ./data/raw/raw_data/V3_docking_data_a
 The `par_jobs` argument uses the `joblib` Python package to parallelize the process https://joblib.readthedocs.io/.
 
 A subset of `ml.ADRP_pocket1_dock.dsc.csv` from March 30th:
-<img src="figs/ML-df-example.png" alt="drawing" height="200"/>
+<img src="README/ML-df-example.png" alt="drawing" height="200"/>
 
 Histograms of docking scores (`reg` column) of two different targets. Higher values indicate better docking.
 
-<img src="figs/dock.score.bin.ml.ADRP_pocket1_dock.png" alt="drawing" width="400"/> <img src="figs/dock.score.bin.ml.PLPro_pocket6_dock.png" alt="drawing" width="400"/>
+<img src="README/dock.score.bin.ml.ADRP_pocket1_dock.png" alt="drawing" width="400"/> <img src="README/dock.score.bin.ml.PLPro_pocket6_dock.png" alt="drawing" width="400"/>
 
 - `reg`: regression score. Raw docking scores are transformed with:
 ```python
@@ -66,7 +66,7 @@ Certain targets exhibits a large number of non-docking drugs as shown for `PLPro
 Raw docking scores from HP docking are stored in Box `2019-nCoV/drug-screening/raw_data/`. Every new batch of results is dumped into `2019-nCoV/drug-screening/raw_data/*docking_data_<month>_<day>` (e.g., `2019-nCoV/drug-screening/raw_data/V3_docking_data_april_9`).
 Each batch is structured with SMILES strings in the first column and receptors/targets in the subsequent columns. The values are the docking scores. For more info refer to https://github.com/2019-ncovgroup/HTDockingDataInstructions.
 
-<img src="figs/docking-results-example.png" alt="drawing" height="200"/>
+<img src="README/docking-results-example.png" alt="drawing" height="200"/>
 
 ## Molecular Features
 The construction of molecular feature sets is moved to another repo https://github.com/adpartin/mol-features.<br>
@@ -78,4 +78,4 @@ Below is a screenshot of Mordred descriptors.
 - Clean descriptors `ena+db.desc`. Use `src/ena+db/clean_desc.py` (updated file is in `2019-nCoV/drug_screening/features/ena+db/ena+db.desc.parquet`)
 - Merge smiles with descriptors and generate fingerprints from smiles (ECFP2, ECFP4, ECFP6). Use `src/ena+db/gen_fea_df.py` (updated file is in `2019-nCoV/drug_screening/features/ena+db/ena+db.features.parquet`) -->
 
-<img src="figs/smi-desc-df.png" alt="drawing" height="220"/>
+<img src="README/smi-desc-df.png" alt="drawing" height="220"/>
