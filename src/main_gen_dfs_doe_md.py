@@ -299,7 +299,6 @@ def run(args):
 
     # --------------------------------------------------------
     print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))
-    # import ipdb; ipdb.set_trace()
     print_fn('Done.')
     lg.kill_logger()
     
