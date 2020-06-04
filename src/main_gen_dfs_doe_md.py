@@ -56,6 +56,10 @@ def parse_args(args):
                         help=f'Prefix of feature column names (default: `_`).')
     parser.add_argument('--q_bins', default=0.025, type=float,
                         help=f'Quantile to bin the docking score (default: 0.025).')
+    parser.add_argument('--n_samples', default=None, type=int,
+                        help=f'Number of drugs to get from features dataset (default: None).')
+    parser.add_argument('--baseline', action='store_true',
+                        help=f'Number of drugs to get from features dataset (default: None).')
     parser.add_argument('--par_jobs', default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
     # args, other_args = parser.parse_known_args( args )
@@ -200,8 +204,8 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
     # import ipdb; ipdb.set_trace()
     print_fn( f'Create and save df ...' )
     for fea in fea_list:
-        # to_csv = False if 'dd' in fea else True # don't save dsc to csv yet
-        to_csv = True
+        to_csv = False if 'dd' in fea else True # don't save descriptors to csv yet
+        # to_csv = True
         ml_df = extract_and_save_fea( ml_df, fea=fea, to_csv=to_csv )
 
     # Save subset to csv
@@ -272,7 +276,7 @@ def run(args):
 
     # Load fea
     fea_df = load_data(fea_path)
-    fea_df = fea_df.sample(n=int(3e5), random_state=0).reset_index(drop=True)
+    fea_df = fea_df.sample(n=args['n_samples'], random_state=0).reset_index(drop=True)
     # (ap) new added ------------------------------------
 
     score_name = 'reg' # unified name for docking scores column in all output dfs
@@ -280,7 +284,7 @@ def run(args):
     kwargs = { 'fea_df': fea_df, 'meta_cols': meta_cols, 'fea_list': fea_list,
                'score_name': score_name, 'q_cls': args['q_bins'], 'bin_th': bin_th,
                'print_fn': print_fn, 'outdir': outdir, 'outfigs': outfigs,
-               'baseline': True }
+               'baseline': args['baseline'] }
 
     if par_jobs > 1:
         results = Parallel(n_jobs=par_jobs, verbose=20)(
