@@ -2,7 +2,6 @@
 MAIN_DIR=/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator
 SCORES_PATH=$MAIN_DIR/data/raw/raw_data/V5_docking_data_april_24/pivot_TITLE.csv
 DATA_DIR=$MAIN_DIR/data/raw/features/BL2_test_images_and_others/
-# JOBS=64
 JOBS=32
 # JOBS=1
 
