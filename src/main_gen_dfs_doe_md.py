@@ -56,12 +56,16 @@ def parse_args(args):
                         help=f'Prefix of feature column names (default: `_`).')
     parser.add_argument('--q_bins', default=0.025, type=float,
                         help=f'Quantile to bin the docking score (default: 0.025).')
-    parser.add_argument('--n_samples', default=None, type=int,
-                        help=f'Number of drugs to get from features dataset (default: None).')
     parser.add_argument('--baseline', action='store_true',
                         help=f'Number of drugs to get from features dataset (default: None).')
     parser.add_argument('--par_jobs', default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
+
+    parser.add_argument('--n_samples', default=None, type=int,
+                        help=f'Number of docking scores to get into the ML df (default: None).')
+    parser.add_argument('--n_top', default=None, type=int,
+                        help=f'Number of top-most docking scores (default: None).')
+
     # args, other_args = parser.parse_known_args( args )
     args= parser.parse_args( args )
     return args
@@ -84,9 +88,10 @@ def cast_to_float(x, float_format=np.float64):
 
 
 def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'], fea_sep='_',
-        score_name='reg', q_cls=0.025, bin_th=2.0, print_fn=print, binner=False, n_sample=3e5,
-        baseline=False, outdir=Path('out'), outfigs=Path('outfigs')):
-    """ Generate a single ML dataframe for the specified target column trg_name.
+                  score_name='reg', q_cls=0.025, bin_th=2.0, print_fn=print, binner=False,
+                  n_samples=None, n_top=None, baseline=False,
+                  outdir=Path('out'), outfigs=Path('outfigs')):
+    """ Generate a single ML df for the loaded target from fpath.
     This func was specifically created to process the new LARGE DOE-MD datasets
     with ZINC drugs that contains >6M molecules.
     Args:
@@ -103,7 +108,7 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
     """
     print_fn( f'Processing  {fpath.name} ...' )
     res = {}
-    trg_name = fpath.name.split('.')[0] # TODO depends on dock file names
+    trg_name = fpath.with_suffix('').name # TODO depends on dock file names
     res['target'] = trg_name
 
     # Outdir
@@ -116,11 +121,14 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
         print_fn('Empty file')
         return None
 
-    # Get meta columns
-    meta_cols = list( set(meta_cols).intersection(set(dock.columns.tolist())) )
+    # # Get meta columns
+    # meta_cols = list( set(meta_cols).intersection(set(dock.columns.tolist())) )
 
     # Rename the scores col
     dock = dock.rename(columns={'Chemgauss4': score_name}) # TODO Chemgauss4 might be different
+
+    # Drop NaN TITLE TODO is this necessary??
+    dock = dock[ ~dock['TITLE'].isna() ].reset_index(drop=True)
 
     # Cast and drop NaN scores
     dock[score_name] = dock[score_name].map(lambda x: cast_to_float(x) )
@@ -137,45 +145,133 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
     plt.savefig(outfigs/f'dock_scores_clipped_{trg_name}.png');
     """
     
+    # -----------------------------------
+    merger = ['TITLE', 'SMILES']
+    aa = pd.merge(dock, fea_df[merger], how='inner', on=merger)
+    aa = aa.sort_values('reg', ascending=False).reset_index(drop=True)
+    print('aa.shape', aa.shape)
+    
+    # Extract subset of drugs based on docking scores
+    if (n_samples is not None) and (n_top is not None):    
+        n_bot = n_samples - n_top
+        df_top = aa[:n_top].reset_index(drop=True)
+        df_rest = aa[n_top:].reset_index(drop=True)
+        
+        # Create bins
+        n_bins = 100
+        bins = np.linspace(0, df_rest[score_name].max(), n_bins+1)
+        df_rest['bin'] = pd.cut(df_rest[score_name].values, bins, precision=5, include_lowest=True)
+        # print(df_rest['bin'].nunique())
+
+        # Create count for the bins and sort
+        df_rest['count'] = 1
+        ref = df_rest.groupby(['bin']).agg({'count': sum}).reset_index()
+        ref = ref.sort_values('count').reset_index(drop=True)        
+        
+        n_bins = len(ref)
+        n_per_bin = int(n_bot/n_bins) # samples per bin
+        print('n_bot:    ', n_bot)
+        print('n_bins:   ', n_bins)
+        print('n_per_bin:', n_per_bin)
+        
+        n_bins_ = n_bins
+        n_bot_ = n_bot
+        n_per_bin_ = n_per_bin
+        
+        indices = []
+        for r in range(ref.shape[0]):
+        # for r in range(12):    
+            b = ref.loc[r,'bin']   # the bin interval
+            c = ref.loc[r,'count'] # count in the bin
+            if c==0:
+                # print('Sec 1: row: {}, count: {}, bin: {}'.format(r, c, b))
+                # print('   Empty bin!')
+                n_bot_ = n_bot_ # same since we didn't collect samples
+                n_bins_ = n_bins_ - 1 # less bins by 1
+                n_per_bin_ = int(n_bot_/n_bins_) # update ratio
+            elif n_per_bin_ > c:
+                # print('Sec 2: row: {}, count: {}, bin: {}'.format(r, c, b))
+                idx = df_rest['bin']==b
+                idx = df_rest.index.values[idx]
+                indices.extend(idx) # collect all samples in this bin
+
+                n_bot_ = n_bot_ - len(idx) # less samples left
+                n_bins_ = n_bins_ - 1 # less bins by 1
+                n_per_bin_ = int(n_bot_/n_bins_) # update ratio
+            else:
+                # print('Sec 3: row: {}, count: {}, bin: {}'.format(r, c, b))
+                # print('   n_bot_:    ', n_bot_)
+                # print('   n_bins_:   ', n_bins_)
+                # print('   n_per_bin_:', n_per_bin_)
+                idx = df_rest['bin']==b
+                idx = df_rest.index.values[idx]
+                indices.extend( np.random.choice(idx, size=n_per_bin_) ) # sample indices
+
+        print('len(indices)', len(indices))
+        print('len(np.unique(indices))', len(np.unique(indices)))
+        df_bot = df_rest.loc[indices, :].reset_index(drop=True)
+        aa = pd.concat([df_top, df_bot], axis=0).reset_index(drop=True)
+
+        fig, ax = plt.subplots()
+        ax.hist(df_bot[score_name], bins=50, facecolor='b', alpha=0.7, label='The rest (balanced)');
+        ax.hist(df_top[score_name], bins=50, facecolor='r', alpha=0.7, label='Top dockers');
+        plt.grid(True)
+        plt.legend(loc='best', framealpha=0.5)
+        plt.title(f'Samples {n_samples}; n_top {n_top}')
+        plt.savefig(outfigs/f'dock.dist.{trg_name}.png')
+        del df_top, df_bot, df_rest
+    else:
+        fig, ax = plt.subplots()
+        ax.hist(aa[score_name], bins=50, facecolor='b', alpha=0.7);
+        plt.grid(True)
+        plt.title(f'Samples {n_samples}; n_top {n_top}')
+        plt.savefig(outfigs/f'dock.dist.{trg_name}.png')        
+
+    bb = fea_df[ fea_df['TITLE'].isin( aa['TITLE'] ) ].reset_index(drop=True)
+    ml_df = pd.merge(aa, bb, how='inner', on=merger).reset_index(drop=True)
+    # -----------------------------------
+
+    if n_samples is not None:
+        assert n_samples==ml_df.shape[0], 'Final ml df size must match n_samples {}'.format(fpath)
+
     # Add binner TODO may not be necessary since now we get good docking scores
-    if binner:
-        dock = add_binner(dock, score_name=score_name, bin_th=bin_th)
+    # if binner:
+    #     dock = add_binner(dock, score_name=score_name, bin_th=bin_th)
 
     # -----------------------------------------    
     # Create cls col
     # ---------------
     # Find quantile value
-    if dock[score_name].min() >= 0: # if scores were transformed to >=0
+    if ml_df[score_name].min() >= 0: # if scores were transformed to >=0
         q_cls = 1.0 - q_cls
-    cls_th = dock[score_name].quantile(q=q_cls)
+    cls_th = ml_df[score_name].quantile(q=q_cls)
     res['cls_th'] = cls_th
     print_fn('Quantile score (q_cls={:.3f}): {:.3f}'.format( q_cls, cls_th ))
 
     # Generate a classification target col
-    if dock[score_name].min() >= 0: # if scores were transformed to >=0
-        value = (dock[score_name] >= cls_th).astype(int)
+    if ml_df[score_name].min() >= 0: # if scores were transformed to >=0
+        value = (ml_df[score_name] >= cls_th).astype(int)
     else:
-        value = (dock[score_name] <= cls_th).astype(int)
-    dock.insert(loc=1, column='cls', value=value)
+        value = (ml_df[score_name] <= cls_th).astype(int)
+    ml_df.insert(loc=1, column='cls', value=value)
     # print_fn('Ratio {:.3f}'.format( dd['dock_bin'].sum() / dd.shape[0] ))
 
-    # Plot
-    hist, bin_edges = np.histogram(dock[score_name], bins=bins)
-    x = np.ones((10,)) * cls_th
-    y = np.linspace(0, hist.max(), len(x))
+    # # Plot
+    # hist, bin_edges = np.histogram(ml_df[score_name], bins=bins)
+    # x = np.ones((10,)) * cls_th
+    # y = np.linspace(0, hist.max(), len(x))
 
-    fig, ax = plt.subplots()
-    plt.hist(dock[score_name], bins=bins, density=False, facecolor='b', alpha=0.5)
-    plt.title(f'Scores clipped to 0: {trg_name}');
-    plt.ylabel('Count'); plt.xlabel('Docking Score');
-    plt.plot(x, y, 'r--', alpha=0.7, label=f'{q_cls}-th quantile')
-    plt.grid(True)
-    plt.savefig(outfigs/f'dock.score.{trg_name}.png')
+    # fig, ax = plt.subplots()
+    # plt.hist(ml_df[score_name], bins=bins, density=False, facecolor='b', alpha=0.5)
+    # plt.title(f'Scores clipped to 0: {trg_name}');
+    # plt.ylabel('Count'); plt.xlabel('Docking Score');
+    # plt.plot(x, y, 'r--', alpha=0.7, label=f'{q_cls}-th quantile')
+    # plt.grid(True)
+    # plt.savefig(outfigs/f'dock.score.{trg_name}.png')
     # -----------------------------------------    
 
-    # Merge docks and features
-    merger = ['TITLE', 'SMILES']
-    ml_df = pd.merge(dock, fea_df, how='inner', on=merger).reset_index(drop=True)
+    # # Get meta columns
+    # meta_cols = list( set(meta_cols).intersection(set(dock.columns.tolist())) )
 
     # Re-org cols
     fea_cols = extract_subset_fea_col_names(ml_df, fea_list=fea_list, fea_sep=fea_sep)
@@ -276,15 +372,18 @@ def run(args):
 
     # Load fea
     fea_df = load_data(fea_path)
-    fea_df = fea_df.sample(n=args['n_samples'], random_state=0).reset_index(drop=True)
+    # if args['n_samples'] is not None:
+    #     fea_df = fea_df.sample(n=args['n_samples'], random_state=0).reset_index(drop=True)
     # (ap) new added ------------------------------------
 
     score_name = 'reg' # unified name for docking scores column in all output dfs
     bin_th = 2.0 # threshold value for the binner column (classifier)
-    kwargs = { 'fea_df': fea_df, 'meta_cols': meta_cols, 'fea_list': fea_list,
-               'score_name': score_name, 'q_cls': args['q_bins'], 'bin_th': bin_th,
-               'print_fn': print_fn, 'outdir': outdir, 'outfigs': outfigs,
-               'baseline': args['baseline'] }
+    kwargs = {'fea_df': fea_df, 'meta_cols': meta_cols, 'fea_list': fea_list,
+              'score_name': score_name, 'q_cls': args['q_bins'], 'bin_th': bin_th,
+              'print_fn': print_fn, 'outdir': outdir, 'outfigs': outfigs,
+              'baseline': args['baseline'], 'n_samples': args['n_samples'],
+              'n_top': args['n_top'],
+              }
 
     if par_jobs > 1:
         results = Parallel(n_jobs=par_jobs, verbose=20)(
@@ -292,6 +391,7 @@ def run(args):
     else:
         results = [] # docking summary including ML baseline scores
         for f in files:
+            # if 'ADRP_6W02_A_1_H.Orderable_zinc_db_enaHLL.sorted.4col.csv' in str(f):
             res = gen_ml_df_new(fpath=f, **kwargs)
             results.append( res )
 
