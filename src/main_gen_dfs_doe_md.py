@@ -43,27 +43,42 @@ GOUT = filepath/'../out'
 
 
 def parse_args(args):
-    parser = argparse.ArgumentParser(description='Generate ML datasets from molecular features and docking scores.')
-    parser.add_argument('-sd', '--scores_main_dir', default=str(SCORES_MAIN_DIR), type=str,
+    parser = argparse.ArgumentParser(
+        description='Generate ML datasets from molecular features and docking scores.')
+
+    parser.add_argument('-sd', '--scores_main_dir',
+                        default=str(SCORES_MAIN_DIR), type=str,
                         help=f'Path to docking scores file (default: {SCORES_MAIN_DIR}).')
-    parser.add_argument('--fea_path', default=str(FEA_PATH), type=str,
+    parser.add_argument('--fea_path',
+                        default=str(FEA_PATH), type=str,
                         help=f'Path to molecular features file (default: {FEA_PATH}).')
-    parser.add_argument('-od', '--outdir', default=None, type=str,
+    parser.add_argument('-od', '--outdir',
+                        default=None, type=str,
                         help=f'Output dir (default: {GOUT}/<batch_name>).')
-    parser.add_argument('-f', '--fea_list', default=['dd'], nargs='+', type=str,
+    parser.add_argument('-f', '--fea_list',
+                        default=['dd'], nargs='+', type=str,
                         help=f'Prefix of feature column names (default: dd).')
-    parser.add_argument('--fea_sep', default=['_'], type=str,
+    parser.add_argument('--fea_sep',
+                        default=['_'], type=str,
                         help=f'Prefix of feature column names (default: `_`).')
-    parser.add_argument('--q_bins', default=0.025, type=float,
+    parser.add_argument('--q_bins',
+                        default=0.025, type=float,
                         help=f'Quantile to bin the docking score (default: 0.025).')
-    parser.add_argument('--baseline', action='store_true',
+    parser.add_argument('--baseline',
+                        action='store_true',
                         help=f'Number of drugs to get from features dataset (default: None).')
-    parser.add_argument('--par_jobs', default=1, type=int, 
+    parser.add_argument('--csv',
+                        action='store_true',
+                        help=f'Store final df in csv (in addition to parquet) (default: None).')
+    parser.add_argument('--par_jobs',
+                        default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
 
-    parser.add_argument('--n_samples', default=None, type=int,
+    parser.add_argument('--n_samples',
+                        default=None, type=int,
                         help=f'Number of docking scores to get into the ML df (default: None).')
-    parser.add_argument('--n_top', default=None, type=int,
+    parser.add_argument('--n_top',
+                        default=None, type=int,
                         help=f'Number of top-most docking scores (default: None).')
 
     # args, other_args = parser.parse_known_args( args )
@@ -89,7 +104,7 @@ def cast_to_float(x, float_format=np.float64):
 
 def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'], fea_sep='_',
                   score_name='reg', q_cls=0.025, bin_th=2.0, print_fn=print, binner=False,
-                  n_samples=None, n_top=None, baseline=False,
+                  n_samples=None, n_top=None, baseline=False, to_csv=False,
                   outdir=Path('out'), outfigs=Path('outfigs')):
     """ Generate a single ML df for the loaded target from fpath.
     This func was specifically created to process the new LARGE DOE-MD datasets
@@ -121,9 +136,6 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
         print_fn('Empty file')
         return None
 
-    # # Get meta columns
-    # meta_cols = list( set(meta_cols).intersection(set(dock.columns.tolist())) )
-
     # Rename the scores col
     dock = dock.rename(columns={'Chemgauss4': score_name}) # TODO Chemgauss4 might be different
 
@@ -145,11 +157,10 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
     plt.savefig(outfigs/f'dock_scores_clipped_{trg_name}.png');
     """
     
-    # -----------------------------------
+    # Start merging docks and features using only the necessary columns
     merger = ['TITLE', 'SMILES']
     aa = pd.merge(dock, fea_df[merger], how='inner', on=merger)
     aa = aa.sort_values('reg', ascending=False).reset_index(drop=True)
-    print('aa.shape', aa.shape)
     
     # Extract subset of drugs based on docking scores
     if (n_samples is not None) and (n_top is not None):    
@@ -163,16 +174,16 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
         df_rest['bin'] = pd.cut(df_rest[score_name].values, bins, precision=5, include_lowest=True)
         # print(df_rest['bin'].nunique())
 
-        # Create count for the bins and sort
+        # Create count for bins and sort
         df_rest['count'] = 1
         ref = df_rest.groupby(['bin']).agg({'count': sum}).reset_index()
         ref = ref.sort_values('count').reset_index(drop=True)        
         
         n_bins = len(ref)
         n_per_bin = int(n_bot/n_bins) # samples per bin
-        print('n_bot:    ', n_bot)
-        print('n_bins:   ', n_bins)
-        print('n_per_bin:', n_per_bin)
+        # print('n_bot:    ', n_bot)
+        # print('n_bins:   ', n_bins)
+        # print('n_per_bin:', n_per_bin)
         
         n_bins_ = n_bins
         n_bot_ = n_bot
@@ -180,36 +191,38 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
         
         indices = []
         for r in range(ref.shape[0]):
-        # for r in range(12):    
-            b = ref.loc[r,'bin']   # the bin interval
-            c = ref.loc[r,'count'] # count in the bin
-            if c==0:
-                # print('Sec 1: row: {}, count: {}, bin: {}'.format(r, c, b))
-                # print('   Empty bin!')
+            b = ref.loc[r,'bin']   # the bin (interval)
+            c = ref.loc[r,'count'] # count of samples in the bin
+            if c == 0:
                 n_bot_ = n_bot_ # same since we didn't collect samples
                 n_bins_ = n_bins_ - 1 # less bins by 1
                 n_per_bin_ = int(n_bot_/n_bins_) # update ratio
             elif n_per_bin_ > c:
-                # print('Sec 2: row: {}, count: {}, bin: {}'.format(r, c, b))
-                idx = df_rest['bin']==b
-                idx = df_rest.index.values[idx]
+                idx = df_rest.index.values[ df_rest['bin'] == b ]
+                assert len(set(indices).intersection(set(idx))) == 0, 'Indices overlap'
                 indices.extend(idx) # collect all samples in this bin
+                assert len(indices) == len(np.unique(indices)), 'Indices overlap'
 
                 n_bot_ = n_bot_ - len(idx) # less samples left
                 n_bins_ = n_bins_ - 1 # less bins by 1
                 n_per_bin_ = int(n_bot_/n_bins_) # update ratio
             else:
-                # print('Sec 3: row: {}, count: {}, bin: {}'.format(r, c, b))
-                # print('   n_bot_:    ', n_bot_)
-                # print('   n_bins_:   ', n_bins_)
-                # print('   n_per_bin_:', n_per_bin_)
-                idx = df_rest['bin']==b
-                idx = df_rest.index.values[idx]
-                indices.extend( np.random.choice(idx, size=n_per_bin_) ) # sample indices
+                idx = df_rest.index.values[ df_rest['bin'] == b ]
+                assert len(set(indices).intersection(set(idx))) == 0, 'Indices overlap'
+                idx = np.random.choice(idx, size=n_per_bin_, replace=False) # sample indices
+                indices.extend( idx ) 
+                assert len(indices) == len(np.unique(indices)), 'Indices overlap'
 
-        print('len(indices)', len(indices))
-        print('len(np.unique(indices))', len(np.unique(indices)))
+        if len(indices) < n_bot:
+            idx = list(set(df_rest.index.values).difference(set(indices)))
+            idx = np.random.choice(idx, size=n_bot-len(indices), replace=False) # sample indices
+            indices.extend( idx ) 
+            assert len(indices) == len(np.unique(indices)), 'Indices overlap'
+
         df_bot = df_rest.loc[indices, :].reset_index(drop=True)
+        df_bot = df_bot.drop(columns=['bin', 'count'])
+
+        assert df_top.shape[1] == df_bot.shape[1], 'Num cols must be the same'
         aa = pd.concat([df_top, df_bot], axis=0).reset_index(drop=True)
 
         fig, ax = plt.subplots()
@@ -270,9 +283,6 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
     # plt.savefig(outfigs/f'dock.score.{trg_name}.png')
     # -----------------------------------------    
 
-    # # Get meta columns
-    # meta_cols = list( set(meta_cols).intersection(set(dock.columns.tolist())) )
-
     # Re-org cols
     fea_cols = extract_subset_fea_col_names(ml_df, fea_list=fea_list, fea_sep=fea_sep)
     meta_cols = ['Inchi-key', 'SMILES', 'TITLE', 'CAT', 'reg', 'cls']
@@ -297,17 +307,10 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
             data.to_feather( str(outpath)+'.feather' )
         return data
 
-    # import ipdb; ipdb.set_trace()
     print_fn( f'Create and save df ...' )
     for fea in fea_list:
-        to_csv = False if 'dd' in fea else True # don't save descriptors to csv yet
-        # to_csv = True
+        # to_csv = False if 'dd' in fea else True # don't save descriptors to csv yet
         ml_df = extract_and_save_fea( ml_df, fea=fea, to_csv=to_csv )
-
-    # Save subset to csv
-    # import ipdb; ipdb.set_trace()
-    # ml_df = ml_df.sample(n=int(n_sample), random_state=0).reset_index(drop=True)
-    # ml_df.to_csv( trg_outdir/f'ml.{trg_name}.dd.csv', index=False)        
 
     if baseline:
         try:
@@ -366,15 +369,13 @@ def run(args):
     print_fn('Features       {}'.format( fea_path ))
     print_fn('Outdir         {}'.format( outdir ))
 
-    # (ap) new added ------------------------------------
+    # Glob docking file names
     file_pattern = '*4col.csv'
     files = sorted(scores_main_dir.glob(file_pattern))
 
     # Load fea
     fea_df = load_data(fea_path)
-    # if args['n_samples'] is not None:
-    #     fea_df = fea_df.sample(n=args['n_samples'], random_state=0).reset_index(drop=True)
-    # (ap) new added ------------------------------------
+    fea_df = fea_df.fillna(0)
 
     score_name = 'reg' # unified name for docking scores column in all output dfs
     bin_th = 2.0 # threshold value for the binner column (classifier)
@@ -382,7 +383,7 @@ def run(args):
               'score_name': score_name, 'q_cls': args['q_bins'], 'bin_th': bin_th,
               'print_fn': print_fn, 'outdir': outdir, 'outfigs': outfigs,
               'baseline': args['baseline'], 'n_samples': args['n_samples'],
-              'n_top': args['n_top'],
+              'n_top': args['n_top'], 'to_csv': args['csv'],
               }
 
     if par_jobs > 1:
@@ -391,7 +392,6 @@ def run(args):
     else:
         results = [] # docking summary including ML baseline scores
         for f in files:
-            # if 'ADRP_6W02_A_1_H.Orderable_zinc_db_enaHLL.sorted.4col.csv' in str(f):
             res = gen_ml_df_new(fpath=f, **kwargs)
             results.append( res )
 
