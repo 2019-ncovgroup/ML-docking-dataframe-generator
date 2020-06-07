@@ -1,6 +1,8 @@
 """
-This script parses docking score results and merges the
-scores of each target with mulitple types of molecular features.
+This script parses docking score results and merges the scores
+of a target with mulitple types of molecular features.
+A single docking scores file contains scores for a single target including
+some metadata (for example: Inchi-key, TITLE, SMILES, Chemgauss4).
 An ML dataframe, containing a single feature type is saved into a file.
 """
 import warnings
@@ -26,16 +28,16 @@ filepath = Path(__file__).resolve().parent
 
 # Utils
 from utils.classlogger import Logger
-from utils.utils import load_data, get_print_func, drop_dup_rows
+from utils.utils import load_data, get_print_func, cast_to_float
+from utils.resample import flatten_dist
 from ml.data import extract_subset_fea, extract_subset_fea_col_names
-from utils.smiles import canon_smiles
 
 # Features
 FEA_PATH = filepath/'../data/raw/features/fea-subsets-hpc/descriptors/dd_fea.parquet'
 meta_cols = ['Inchi-key', 'TITLE', 'SMILES']
 
 # Docking
-SCORES_MAIN_DIR = filepath/'../data/raw/dock-2020-06-01'
+SCORES_MAIN_DIR = filepath/'../data/raw/docking/V5.1'
 SCORES_MAIN_DIR = SCORES_MAIN_DIR/'OZD/'
 
 # Global outdir
@@ -67,19 +69,24 @@ def parse_args(args):
     parser.add_argument('--baseline',
                         action='store_true',
                         help=f'Number of drugs to get from features dataset (default: None).')
-    parser.add_argument('--csv',
-                        action='store_true',
-                        help=f'Store final df in csv (in addition to parquet) (default: None).')
+    parser.add_argument('--frm',
+                        nargs='+', type=str,
+                        default=['parquet'],
+                        choices=['parquet', 'feather', 'csv', 'none'],
+                        help=f'Output file format for ML dfs (default: parquet).')
     parser.add_argument('--par_jobs',
                         default=1, type=int, 
                         help=f'Number of joblib parallel jobs (default: 1).')
-
     parser.add_argument('--n_samples',
                         default=None, type=int,
                         help=f'Number of docking scores to get into the ML df (default: None).')
     parser.add_argument('--n_top',
                         default=None, type=int,
-                        help=f'Number of top-most docking scores (default: None).')
+                        help=f'Number of top-most docking scores. This is irrelevant if n_samples \
+                        was not specified (default: None).')
+    parser.add_argument('--flatten',
+                        action='store_true',
+                        help=f'Flatten the distribution of docking scores (default: False).')
 
     # args, other_args = parser.parse_known_args( args )
     args= parser.parse_args( args )
@@ -93,18 +100,9 @@ def add_binner(dd_trg, score_name='reg', bin_th=2.0):
     return dd_trg
 
 
-def cast_to_float(x, float_format=np.float64):
-    try:
-        x = np.float64(x)
-    except:
-        print("Could not cast the value to numeric: {}".format(x))
-        x = np.nan
-    return x
-
-
 def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'], fea_sep='_',
                   score_name='reg', q_cls=0.025, bin_th=2.0, print_fn=print, binner=False,
-                  n_samples=None, n_top=None, baseline=False, to_csv=False,
+                  n_samples=None, n_top=None, baseline=False, flatten=False, frm=['parquet'],
                   outdir=Path('out'), outfigs=Path('outfigs')):
     """ Generate a single ML df for the loaded target from fpath.
     This func was specifically created to process the new LARGE DOE-MD datasets
@@ -126,103 +124,36 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
     trg_name = fpath.with_suffix('').name # TODO depends on dock file names
     res['target'] = trg_name
 
-    # Outdir
-    trg_outdir = outdir/f'DIR.ml.{trg_name}'
-    os.makedirs(trg_outdir, exist_ok=True)
-
     # Load dockings
     dock = load_data(fpath)
     if dock.empty:
         print_fn('Empty file')
         return None
 
-    # Rename the scores col
+    # Some filtering
     dock = dock.rename(columns={'Chemgauss4': score_name}) # TODO Chemgauss4 might be different
-
-    # Drop NaN TITLE TODO is this necessary??
-    dock = dock[ ~dock['TITLE'].isna() ].reset_index(drop=True)
-
-    # Cast and drop NaN scores
-    dock[score_name] = dock[score_name].map(lambda x: cast_to_float(x) )
-    dock = dock[ ~dock[score_name].isna() ].reset_index(drop=True)
-
-    # Transform scores to positive
-    dock[score_name] = abs( np.clip(dock[score_name], a_min=None, a_max=0) )
-    res['min'], res['max'] = dock[score_name].min(), dock[score_name].max()
-    bins = 50
-    """
-    p = dd[score_name].hist(bins=bins);
-    p.set_title(f'Scores Clipped to 0: {trg_name}');
-    p.set_ylabel('Count'); p.set_xlabel('Docking Score');
-    plt.savefig(outfigs/f'dock_scores_clipped_{trg_name}.png');
-    """
+    dock = dock[ dock['TITLE'].notna() ].reset_index(drop=True) # drop TITLE==nan
+    dock[score_name] = dock[score_name].map(lambda x: cast_to_float(x) ) # cast scores to float
+    dock = dock[ dock[score_name].notna() ].reset_index(drop=True) # drop non-float
+    dock[score_name] = abs( np.clip(dock[score_name], a_min=None, a_max=0) ) # conv scores to >=0 
     
     # Start merging docks and features using only the necessary columns
     merger = ['TITLE', 'SMILES']
     aa = pd.merge(dock, fea_df[merger], how='inner', on=merger)
     aa = aa.sort_values('reg', ascending=False).reset_index(drop=True)
-    
-    # Extract subset of drugs based on docking scores
+
+    # Extract subset of samples based on docking scores
     if (n_samples is not None) and (n_top is not None):    
         n_bot = n_samples - n_top
         df_top = aa[:n_top].reset_index(drop=True)
         df_rest = aa[n_top:].reset_index(drop=True)
         
-        # Create bins
-        n_bins = 100
-        bins = np.linspace(0, df_rest[score_name].max(), n_bins+1)
-        df_rest['bin'] = pd.cut(df_rest[score_name].values, bins, precision=5, include_lowest=True)
-        # print(df_rest['bin'].nunique())
+        if flatten:
+            df_bot = flatten_dist(df=df_rest, n=n_bot, score_name=score_name)
+        else:
+            df_bot = df_rest.sample(n=n_bot, replace=False)
 
-        # Create count for bins and sort
-        df_rest['count'] = 1
-        ref = df_rest.groupby(['bin']).agg({'count': sum}).reset_index()
-        ref = ref.sort_values('count').reset_index(drop=True)        
-        
-        n_bins = len(ref)
-        n_per_bin = int(n_bot/n_bins) # samples per bin
-        # print('n_bot:    ', n_bot)
-        # print('n_bins:   ', n_bins)
-        # print('n_per_bin:', n_per_bin)
-        
-        n_bins_ = n_bins
-        n_bot_ = n_bot
-        n_per_bin_ = n_per_bin
-        
-        indices = []
-        for r in range(ref.shape[0]):
-            b = ref.loc[r,'bin']   # the bin (interval)
-            c = ref.loc[r,'count'] # count of samples in the bin
-            if c == 0:
-                n_bot_ = n_bot_ # same since we didn't collect samples
-                n_bins_ = n_bins_ - 1 # less bins by 1
-                n_per_bin_ = int(n_bot_/n_bins_) # update ratio
-            elif n_per_bin_ > c:
-                idx = df_rest.index.values[ df_rest['bin'] == b ]
-                assert len(set(indices).intersection(set(idx))) == 0, 'Indices overlap'
-                indices.extend(idx) # collect all samples in this bin
-                assert len(indices) == len(np.unique(indices)), 'Indices overlap'
-
-                n_bot_ = n_bot_ - len(idx) # less samples left
-                n_bins_ = n_bins_ - 1 # less bins by 1
-                n_per_bin_ = int(n_bot_/n_bins_) # update ratio
-            else:
-                idx = df_rest.index.values[ df_rest['bin'] == b ]
-                assert len(set(indices).intersection(set(idx))) == 0, 'Indices overlap'
-                idx = np.random.choice(idx, size=n_per_bin_, replace=False) # sample indices
-                indices.extend( idx ) 
-                assert len(indices) == len(np.unique(indices)), 'Indices overlap'
-
-        if len(indices) < n_bot:
-            idx = list(set(df_rest.index.values).difference(set(indices)))
-            idx = np.random.choice(idx, size=n_bot-len(indices), replace=False) # sample indices
-            indices.extend( idx ) 
-            assert len(indices) == len(np.unique(indices)), 'Indices overlap'
-
-        df_bot = df_rest.loc[indices, :].reset_index(drop=True)
-        df_bot = df_bot.drop(columns=['bin', 'count'])
-
-        assert df_top.shape[1] == df_bot.shape[1], 'Num cols must be the same'
+        assert df_top.shape[1] == df_bot.shape[1], 'Num cols must be the same when concat'
         aa = pd.concat([df_top, df_bot], axis=0).reset_index(drop=True)
 
         fig, ax = plt.subplots()
@@ -233,19 +164,32 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
         plt.title(f'Samples {n_samples}; n_top {n_top}')
         plt.savefig(outfigs/f'dock.dist.{trg_name}.png')
         del df_top, df_bot, df_rest
-    else:
+
+    elif (n_samples is not None):    
+        if flatten:
+            aa = flatten_dist(df=aa, n=n_samples, score_name=score_name)
+        else:
+            aa = aa.sample(n=n_samples, replace=False)
+
         fig, ax = plt.subplots()
         ax.hist(aa[score_name], bins=50, facecolor='b', alpha=0.7);
         plt.grid(True)
-        plt.title(f'Samples {n_samples}; n_top {n_top}')
+        plt.title(f'Samples {n_samples}')
+        plt.savefig(outfigs/f'dock.dist.{trg_name}.png')        
+
+    else:
+        # Plot
+        fig, ax = plt.subplots()
+        ax.hist(aa[score_name], bins=50, facecolor='b', alpha=0.7);
+        plt.grid(True)
+        plt.title(f'Samples {len(aa)}')
         plt.savefig(outfigs/f'dock.dist.{trg_name}.png')        
 
     bb = fea_df[ fea_df['TITLE'].isin( aa['TITLE'] ) ].reset_index(drop=True)
     ml_df = pd.merge(aa, bb, how='inner', on=merger).reset_index(drop=True)
-    # -----------------------------------
 
     if n_samples is not None:
-        assert n_samples==ml_df.shape[0], 'Final ml df size must match n_samples {}'.format(fpath)
+        assert n_samples==ml_df.shape[0], 'Final ml_df size must match n_samples {}'.format(fpath)
 
     # Add binner TODO may not be necessary since now we get good docking scores
     # if binner:
@@ -289,8 +233,8 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
     cols = meta_cols + fea_cols
     ml_df = ml_df[ cols ]
 
-    # Separate the features
-    def extract_and_save_fea( df, fea, to_csv=False, to_feather=True ):
+    # Extract the features
+    def extract_and_save_fea( df, fea, frm=['parquet'] ):
         """ Extract specific feature type (including metadata) and
         save to file. 
         """
@@ -298,20 +242,29 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
         fea_cols_drop = extract_subset_fea_col_names(df, fea_list=fea_prfx_drop, fea_sep=fea_sep)
         data = df.drop( columns=fea_cols_drop )
 
-        # Save
+        frm = [i.lower() for i in frm]
+        if 'none' in frm:
+            return data
+        
+        # Outdir
+        trg_outdir = outdir/f'DIR.ml.{trg_name}'
+        os.makedirs(trg_outdir, exist_ok=True)
         outpath = trg_outdir/f'ml.{trg_name}.{fea}'
-        data.to_parquet( str(outpath)+'.parquet' )
-        if to_csv:
-            data.to_csv( str(outpath)+'.csv', index=False )
-        if to_feather:
-            data.to_feather( str(outpath)+'.feather' )
+
+        for f in frm:
+            if f == 'parquet':
+                data.to_parquet( str(outpath)+'.parquet' )
+            elif f == 'feather':
+                data.to_feather( str(outpath)+'.feather' )
+            elif f == 'csv':
+                data.to_csv( str(outpath)+'.csv', index=False )
         return data
 
     print_fn( f'Create and save df ...' )
     for fea in fea_list:
-        # to_csv = False if 'dd' in fea else True # don't save descriptors to csv yet
-        ml_df = extract_and_save_fea( ml_df, fea=fea, to_csv=to_csv )
+        ml_df = extract_and_save_fea( ml_df, fea=fea, frm=frm )
 
+    res['min'], res['max'] = ml_df[score_name].min(), ml_df[score_name].max()
     if baseline:
         try:
             # Train LGBM as a baseline model
@@ -383,7 +336,7 @@ def run(args):
               'score_name': score_name, 'q_cls': args['q_bins'], 'bin_th': bin_th,
               'print_fn': print_fn, 'outdir': outdir, 'outfigs': outfigs,
               'baseline': args['baseline'], 'n_samples': args['n_samples'],
-              'n_top': args['n_top'], 'to_csv': args['csv'],
+              'n_top': args['n_top'], 'frm': args['frm'], 'flatten': args['flatten'],
               }
 
     if par_jobs > 1:
