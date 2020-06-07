@@ -95,4 +95,14 @@ def get_print_func(logger=None):
     return print if logger is None else logger.info
     
     
+def cast_to_float(x, float_format=np.float64):
+    """ Cast values to float, and return nan if unsuccessful. """
+    try:
+        x = np.float64(x)
+    except:
+        print('Could not cast the value to numeric: {}'.format(x))
+        x = np.nan
+    return x
+
+
 
