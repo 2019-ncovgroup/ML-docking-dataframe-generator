@@ -36,7 +36,6 @@ from utils.smiles import canon_smiles
 # Features
 # FEA_PATH = filepath/'../data/raw/features/BL1/ena+db.smi.desc.parquet' # BL1 (ENA+DB: ~305K)
 # FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
-# FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
 FEA_PATH = filepath/'../sample_data/sample_features/BL2.dsc.subset.parquet'
 meta_cols = ['TITLE', 'SMILES']
 
@@ -45,7 +44,6 @@ meta_cols = ['TITLE', 'SMILES']
 
 # Docking
 SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
-# SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_SMILES.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_TITLE.csv'
@@ -281,7 +279,7 @@ def dump_single_trg(rsp, trg_name, meta_cols=['TITLE', 'SMILES'],
 
 
 def run(args):
-    t0=time()
+    t0 = time()
     scores_path = Path( args['scores_path'] ).resolve()
     fea_path = Path( args['fea_path'] ).resolve()
     img_path = None if args['img_path'] is None else Path( args['img_path'] ).resolve()
@@ -329,11 +327,10 @@ def run(args):
     # -----------------------------------------    
     score_name = 'reg' # unified name for docking scores column in all output dfs
     bin_th = 2.0 # threshold value for the binner column (classifier)
-    kwargs = { 'rsp': rsp, 'meta_cols': meta_cols,
-               'score_name': score_name, 'q_cls': args['q_bins'],
-               'print_fn': print_fn, 'outdir': outdir }
+    kwargs = {'rsp': rsp, 'meta_cols': meta_cols,
+              'score_name': score_name, 'q_cls': args['q_bins'],
+              'print_fn': print_fn, 'outdir': outdir}
 
-    # import pdb; pdb.set_trace()
     if par_jobs > 1:
         results = Parallel(n_jobs=par_jobs, verbose=20)(
                 delayed(dump_single_trg)(
@@ -348,15 +345,14 @@ def run(args):
     # Process Images
     # -----------------------------------------    
     # Load images
-    # import pdb; pdb.set_trace()
     if img_path is not None:
         print_fn('\nLoad images ...')
         images = load_data( img_path )
         print_fn('Images {} {}'.format( type(images), len(images) ))
 
         # Keep intersect on samples (TITLE)
-        kwargs = { 'images': images, 'rsp': rsp,
-                   'print_fn': print_fn, 'outdir': outdir }
+        kwargs = {'images': images, 'rsp': rsp,
+                  'print_fn': print_fn, 'outdir': outdir}
 
         if par_jobs > 1:
             Parallel(n_jobs=par_jobs, verbose=20)(
