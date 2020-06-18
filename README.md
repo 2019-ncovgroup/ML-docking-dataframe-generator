@@ -1,5 +1,5 @@
 This pipeline generates ML dataframes for predicting docking scores from molecular features.<br>
-In this version of processing, as opposed to branch `raw_data`, the docking scores are stored in ./data/raw/docking/**/<target_name>*.csv
+In this version, as opposed to branch `raw_data`, the docking scores are stored in ./data/raw/docking/**/<target_name>*.csv
 
 ## Getting started
 Clone the repo.
@@ -22,13 +22,13 @@ Get the required data from Box (or Globus):
 ## Genearte ML dataframes
 The main script `./src/main_gen_dfs_v5dot1.py` takes as input arguments the scores dir (argument `--scores_dir`) and features dir (argument `--fea_dir`). Each scores file which corresponds to a specific target is merged with the features dataframe on a drug ID column (at this point we're using the TITLE).
 
-Since the recent batches of docking scores contain on the order of 6M compounds, we decided to use a subset of compounds for training ML models.<br>
-The question is how should we sample the compounds from the entire set of 6M?
-We observed that sampling a set of scores which results in a flatten (uniform) distribution provides better prediction accuracy in inference on a subset of high docking samples?
+Since the recent batches of docking scores contain on the order of 6M compounds, we decided to build the ML dataframes using a subset of samples.
+The question is how should we sample the scores from the entire set of 6M samples?
+We observed that sampling a set of scores which results in a flatten (uniform) distribution provides better prediction accuracy in inference on a subset of high docking samples. Thus, we generate ML dataframe for each target containing 1M samples with an approximately uniform distribution of scores.
 
 The resulting ML data files follow the same naming convention: `DIR.ml.<target_name>.*.<feature_type>.parquet`.
-For example, the script will create a dir for following for a target `3CLPro_7BQY_A_1_F.Orderable_zinc_db_enaHLL`:
-- `./out/V5.1-1M-flatten/DIR.ml.3CLPro_7BQY_A_1_F.Orderable_zinc_db_enaHLL.sorted.4col`
+For example, for the target `3CLPro_7BQY_A_1_F.Orderable_zinc_db_enaHLL`, the script will create a dir called 
+`./out/V5.1-1M-flatten/DIR.ml.3CLPro_7BQY_A_1_F.Orderable_zinc_db_enaHLL.sorted.4col`
 
 ```
 $ python src/main_gen_dfs.py --scores_path ./data/raw/raw_data/V3_docking_data_april_9/docking_data_out_v3.1.csv --fea_path ./data/raw/features/BL1/ena+db.smi.desc.parquet --par_jobs 16
