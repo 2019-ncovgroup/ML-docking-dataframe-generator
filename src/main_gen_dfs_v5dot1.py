@@ -2,8 +2,8 @@
 This script parses docking score results and merges the scores
 of a target with mulitple types of molecular features.
 A single docking scores file contains scores for a single target including
-some metadata (for example: Inchi-key, TITLE, SMILES, Chemgauss4).
-An ML dataframe, containing a single feature type is saved into a file.
+some metadata (such as Inchi-key, TITLE, SMILES, Chemgauss4).
+An ML dataframe containing a single feature type is saved into a file.
 """
 import warnings
 warnings.filterwarnings('ignore')
@@ -33,12 +33,14 @@ from utils.resample import flatten_dist
 from ml.data import extract_subset_fea, extract_subset_fea_col_names
 
 # Features
-FEA_PATH = filepath/'../data/raw/features/fea-subsets-hpc/descriptors/dd_fea.parquet'
+FEA_DIR = filepath/'../data/raw/features/fea-subsets-hpc'
+DRG_SET = 'OZD'
+FEA_TYPE = 'descriptors'
 meta_cols = ['Inchi-key', 'TITLE', 'SMILES']
 
 # Docking
-SCORES_MAIN_DIR = filepath/'../data/raw/docking/V5.1'
-SCORES_MAIN_DIR = SCORES_MAIN_DIR/'OZD/'
+SCORES_DIR = filepath/'../data/raw/docking/V5.1'
+SCORES_DIR = SCORES_DIR/'OZD'
 
 # Global outdir
 GOUT = filepath/'../out'
@@ -48,40 +50,60 @@ def parse_args(args):
     parser = argparse.ArgumentParser(
         description='Generate ML datasets from molecular features and docking scores.')
 
-    parser.add_argument('-sd', '--scores_main_dir',
-                        default=str(SCORES_MAIN_DIR), type=str,
-                        help=f'Path to docking scores file (default: {SCORES_MAIN_DIR}).')
-    parser.add_argument('--fea_path',
-                        default=str(FEA_PATH), type=str,
-                        help=f'Path to molecular features file (default: {FEA_PATH}).')
+    parser.add_argument('-sd', '--scores_dir',
+                        type=str,
+                        default=str(SCORES_DIR),
+                        help=f'Path to docking scores file (default: {SCORES_DIR}).')
+    parser.add_argument('--fea_dir',
+                        type=str,
+                        default=str(FEA_DIR),
+                        help=f'Path to molecular features file (default: {FEA_DIR}).')
+    parser.add_argument('--drg_set',
+                        type=str,
+                        default=DRG_SET, 
+                        choices=['OZD'], 
+                        help=f'Drug set (default: {DRG_SET}).')
+    parser.add_argument('--fea_type',
+                        type=str,
+                        default=FEA_TYPE, 
+                        choices=['descriptors'],
+                        help=f'Feature type (default: {FEA_TYPE}).')
     parser.add_argument('-od', '--outdir',
-                        default=None, type=str,
+                        type=str,
+                        default=None,
                         help=f'Output dir (default: {GOUT}/<batch_name>).')
     parser.add_argument('-f', '--fea_list',
-                        default=['dd'], nargs='+', type=str,
+                        type=str,
+                        default=['dd'], nargs='+',
                         help=f'Prefix of feature column names (default: dd).')
     parser.add_argument('--fea_sep',
-                        default=['_'], type=str,
+                        type=str,
+                        default=['_'],
                         help=f'Prefix of feature column names (default: `_`).')
     parser.add_argument('--q_bins',
-                        default=0.025, type=float,
+                        type=float,
+                        default=0.025, 
                         help=f'Quantile to bin the docking score (default: 0.025).')
     parser.add_argument('--baseline',
                         action='store_true',
                         help=f'Number of drugs to get from features dataset (default: None).')
     parser.add_argument('--frm',
-                        nargs='+', type=str,
+                        type=str,
+                        nargs='+',
                         default=['parquet'],
                         choices=['parquet', 'feather', 'csv', 'none'],
                         help=f'Output file format for ML dfs (default: parquet).')
     parser.add_argument('--par_jobs',
-                        default=1, type=int, 
+                        type=int, 
+                        default=1,
                         help=f'Number of joblib parallel jobs (default: 1).')
     parser.add_argument('--n_samples',
-                        default=None, type=int,
+                        type=int,
+                        default=None,
                         help=f'Number of docking scores to get into the ML df (default: None).')
     parser.add_argument('--n_top',
-                        default=None, type=int,
+                        type=int,
+                        default=None,
                         help=f'Number of top-most docking scores. This is irrelevant if n_samples \
                         was not specified (default: None).')
     parser.add_argument('--flatten',
@@ -293,9 +315,12 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
 
 
 def run(args):
-    t0=time()
-    scores_main_dir = Path( args['scores_main_dir'] ).resolve()
-    fea_path = Path( args['fea_path'] ).resolve()
+    import ipdb; ipdb.set_trace()
+    t0 = time()
+    scores_dir = Path( args['scores_dir'] ).resolve()
+    fea_dir = Path( args['fea_dir'] ).resolve()
+    drg_set = Path( args['drg_set'] )
+    fea_type = Path( args['fea_type'] )
 
     par_jobs = int( args['par_jobs'] )
     fea_list = args['fea_list']
@@ -304,7 +329,7 @@ def run(args):
     if args['outdir'] is not None:
         outdir = Path( args['outdir'] ).resolve()
     else:
-        batch_name = scores_main_dir.parent.name
+        batch_name = scores_dir.parent.name
         outdir = Path( GOUT/batch_name ).resolve()
 
     outfigs = outdir/'figs'
@@ -318,15 +343,17 @@ def run(args):
     print_fn(f'File path: {filepath}')
     print_fn(f'\n{pformat(args)}')
     
-    print_fn('\nDocking files  {}'.format( scores_main_dir ))
-    print_fn('Features       {}'.format( fea_path ))
+    print_fn('\nDocking files  {}'.format( scores_dir ))
+    print_fn('Features       {}'.format( fea_dir ))
     print_fn('Outdir         {}'.format( outdir ))
 
     # Glob docking file names
     file_pattern = '*4col.csv'
-    files = sorted(scores_main_dir.glob(file_pattern))
+    files = sorted(scores_dir.glob(file_pattern))
 
     # Load fea
+    ID = 'TITLE'
+    fea_path = Path( fea_dir, drg_set, fea_type, 'dd_fea.parquet' ).resolve()
     fea_df = load_data(fea_path)
     fea_df = fea_df.fillna(0)
 
