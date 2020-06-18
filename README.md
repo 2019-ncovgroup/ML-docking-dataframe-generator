@@ -1,4 +1,5 @@
-This pipeline generates ML dataframes for predicting docking scores from molecular features.
+This pipeline generates ML dataframes for predicting docking scores from molecular features.<br>
+This branch is called raw_data because in this version the raw docking scores were stored in a dir called raw_data.
 
 ## Getting started
 Clone the repo.
