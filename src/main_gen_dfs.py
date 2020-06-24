@@ -2,6 +2,8 @@
 This script parses docking score results and merges the
 scores of each target with mulitple types of molecular features.
 An ML dataframe, containing a single feature type is saved into a file.
+This script as docking scores that are stored in a single file which follows
+the older format of 'raw_data'.
 
 For parellel processing we use: joblib.readthedocs.io/en/latest/parallel.html
 """
@@ -36,7 +38,6 @@ from utils.smiles import canon_smiles
 # Features
 # FEA_PATH = filepath/'../data/raw/features/BL1/ena+db.smi.desc.parquet' # BL1 (ENA+DB: ~305K)
 # FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
-# FEA_PATH = filepath/'../data/raw/features/BL2/BL2.dsc.parquet' # BL2 (ENA+DB: ~305K)
 FEA_PATH = filepath/'../sample_data/sample_features/BL2.dsc.subset.parquet'
 meta_cols = ['TITLE', 'SMILES']
 
@@ -45,7 +46,6 @@ meta_cols = ['TITLE', 'SMILES']
 
 # Docking
 SCORES_MAIN_PATH = filepath/'../data/raw/raw_data'
-# SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V3_docking_data_april_16/docking_data_out_v3.2.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_SMILES.csv'
 # SCORES_PATH = SCORES_MAIN_PATH/'V5_docking_data_april_24/pivot_TITLE.csv'
@@ -56,20 +56,36 @@ GOUT = filepath/'../out'
 
 
 def parse_args(args):
-    parser = argparse.ArgumentParser(description='Generate ML datasets from molecular features and docking scores.')
-    parser.add_argument('-sp', '--scores_path', default=str(SCORES_PATH), type=str,
+    parser = argparse.ArgumentParser(
+        description='Generate ML datasets from molecular features and docking scores.')
+
+    parser.add_argument('-sp', '--scores_path',
+                        type=str,
+                        default=str(SCORES_PATH), 
                         help=f'Path to docking scores file (default: {SCORES_PATH}).')
-    parser.add_argument('--fea_path', default=str(FEA_PATH), type=str,
+    parser.add_argument('--fea_path',
+                        type=str,
+                        default=str(FEA_PATH), 
                         help=f'Path to molecular features file (default: {FEA_PATH}).')
-    parser.add_argument('--img_path', default=None, type=str,
+    parser.add_argument('--img_path',
+                        type=str,
+                        default=None, 
                         help='Path to molecule images file (default: None.')
-    parser.add_argument('-od', '--outdir', default=None, type=str,
+    parser.add_argument('-od', '--outdir',
+                        type=str,
+                        default=None, 
                         help=f'Output dir (default: {GOUT}/<batch_name>).')
-    parser.add_argument('-f', '--fea_list', default=['dsc'], nargs='+', type=str,
+    parser.add_argument('-f', '--fea_list',
+                        type=str,
+                        default=['dsc'], nargs='+', 
                         help=f'Prefix of feature column names (default: dsc).')
-    parser.add_argument('--q_bins', default=0.025, type=float,
+    parser.add_argument('--q_bins',
+                        default=0.025,
+                        type=float,
                         help=f'Quantile to bin the docking score (default: 0.025).')
-    parser.add_argument('--par_jobs', default=1, type=int, 
+    parser.add_argument('--par_jobs',
+                        type=int, 
+                        default=1,
                         help=f'Number of joblib parallel jobs (default: 1).')
     # args, other_args = parser.parse_known_args( args )
     args= parser.parse_args( args )
@@ -281,7 +297,8 @@ def dump_single_trg(rsp, trg_name, meta_cols=['TITLE', 'SMILES'],
 
 
 def run(args):
-    t0=time()
+    # import ipdb; ipdb.set_trace()
+    t0 = time()
     scores_path = Path( args['scores_path'] ).resolve()
     fea_path = Path( args['fea_path'] ).resolve()
     img_path = None if args['img_path'] is None else Path( args['img_path'] ).resolve()
@@ -329,9 +346,9 @@ def run(args):
     # -----------------------------------------    
     score_name = 'reg' # unified name for docking scores column in all output dfs
     bin_th = 2.0 # threshold value for the binner column (classifier)
-    kwargs = { 'rsp': rsp, 'meta_cols': meta_cols,
-               'score_name': score_name, 'q_cls': args['q_bins'],
-               'print_fn': print_fn, 'outdir': outdir }
+    kwargs = {'rsp': rsp, 'meta_cols': meta_cols,
+              'score_name': score_name, 'q_cls': args['q_bins'],
+              'print_fn': print_fn, 'outdir': outdir}
 
     # import pdb; pdb.set_trace()
     if par_jobs > 1:

@@ -381,7 +381,8 @@ def run(args):
     results.sort_values('target').reset_index(drop=True)
     results.to_csv( outdir/'dock.ml.dd.baseline.csv', index=False )
 
-    # --------------------------------------------------------
+
+    # ========================================================
     print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))
     print_fn('Done.')
     lg.kill_logger()
