@@ -87,8 +87,9 @@ def parse_args(args):
                         type=int, 
                         default=1,
                         help=f'Number of joblib parallel jobs (default: 1).')
+
     # args, other_args = parser.parse_known_args( args )
-    args= parser.parse_args( args )
+    args = parser.parse_args( args )
     return args
 
 
@@ -265,8 +266,8 @@ def gen_ml_images(images, rsp, trg_name, score_name='reg', print_fn=print,
 
 
 def dump_single_trg(rsp, trg_name, meta_cols=['TITLE', 'SMILES'],
-              score_name='reg', q_cls=0.025, print_fn=print,
-              outdir=Path('out')):
+                    score_name='reg', q_cls=0.025, print_fn=print,
+                    outdir=Path('out')):
     """ Dump docking scores of the specified target. """
     meta_cols = set(meta_cols).intersection(set(rsp.columns.tolist()))
     meta_cols = [i for i in meta_cols]
