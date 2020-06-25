@@ -35,12 +35,13 @@ from ml.data import extract_subset_fea, extract_subset_fea_col_names
 # Features
 FEA_DIR = filepath/'../data/raw/features/fea-subsets-hpc'
 DRG_SET = 'OZD'
-FEA_TYPE = 'descriptors'
+# FEA_TYPE = 'descriptors'
 meta_cols = ['Inchi-key', 'TITLE', 'SMILES']
 
 # Docking
 SCORES_DIR = filepath/'../data/raw/docking/V5.1'
-SCORES_DIR = SCORES_DIR/'OZD'
+# SCORES_DIR = SCORES_DIR/'OZD'
+SCORES_DIR = SCORES_DIR/DRG_SET
 
 # Global outdir
 GOUT = filepath/'../out'
@@ -54,20 +55,26 @@ def parse_args(args):
                         type=str,
                         default=str(SCORES_DIR),
                         help=f'Path to docking scores file (default: {SCORES_DIR}).')
-    parser.add_argument('--fea_dir',
-                        type=str,
-                        default=str(FEA_DIR),
-                        help=f'Path to molecular features file (default: {FEA_DIR}).')
+    # parser.add_argument('--fea_dir',
+    #                     type=str,
+    #                     default=str(FEA_DIR),
+    #                     help=f'Path to molecular features file (default: {FEA_DIR}).')
     parser.add_argument('--drg_set',
                         type=str,
                         default=DRG_SET, 
                         choices=['OZD'], 
                         help=f'Drug set (default: {DRG_SET}).')
+    # parser.add_argument('--fea_type',
+    #                     type=str,
+    #                     default=FEA_TYPE, 
+    #                     choices=['descriptors'],
+    #                     help=f'Feature type (default: {FEA_TYPE}).')
     parser.add_argument('--fea_type',
-                        type=str,
-                        default=FEA_TYPE, 
-                        choices=['descriptors'],
-                        help=f'Feature type (default: {FEA_TYPE}).')
+                        type=str, 
+                        default=FEA_TYPE,
+                        nargs='+',
+                        choices=['descriptors', 'images', 'fps'],
+                        help=f'Feature type (default: descriptors).')
     parser.add_argument('-od', '--outdir',
                         type=str,
                         default=None,
@@ -111,7 +118,7 @@ def parse_args(args):
                         help=f'Flatten the distribution of docking scores (default: False).')
 
     # args, other_args = parser.parse_known_args( args )
-    args= parser.parse_args( args )
+    args = parser.parse_args( args )
     return args
 
 
@@ -207,6 +214,7 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
         plt.title(f'Samples {len(aa)}')
         plt.savefig(outfigs/f'dock.dist.{trg_name}.png')        
 
+    # Merge scores with features
     bb = fea_df[ fea_df['TITLE'].isin( aa['TITLE'] ) ].reset_index(drop=True)
     ml_df = pd.merge(aa, bb, how='inner', on=merger).reset_index(drop=True)
 
@@ -254,6 +262,13 @@ def gen_ml_df_new(fpath, fea_df, meta_cols=['TITLE', 'SMILES'], fea_list=['dd'],
     meta_cols = ['Inchi-key', 'SMILES', 'TITLE', 'CAT', 'reg', 'cls']
     cols = meta_cols + fea_cols
     ml_df = ml_df[ cols ]
+
+    # New! Save docks only
+    dock_df = ml_df[ meta_cols ]
+    trg_outdir = outdir/f'DIR.ml.{trg_name}'
+    outpath = trg_outdir/f'docks.df.{trg_name}.csv'
+    os.makedirs(trg_outdir, exist_ok=True)
+    dock_df.to_csv(outpath, index=False)
 
     # Extract the features
     def extract_and_save_fea( df, fea, frm=['parquet'] ):
@@ -318,12 +333,13 @@ def run(args):
     import ipdb; ipdb.set_trace()
     t0 = time()
     scores_dir = Path( args['scores_dir'] ).resolve()
-    fea_dir = Path( args['fea_dir'] ).resolve()
+    # fea_dir = Path( args['fea_dir'] ).resolve()
     drg_set = Path( args['drg_set'] )
     fea_type = Path( args['fea_type'] )
 
+    fea_list = args['fea_list'] # TODO: not sure if we need this
+
     par_jobs = int( args['par_jobs'] )
-    fea_list = args['fea_list']
     assert par_jobs > 0, f"The arg 'par_jobs' must be int >1 (got {par_jobs})"
 
     if args['outdir'] is not None:
@@ -340,16 +356,85 @@ def run(args):
     # Logger
     lg = Logger( outdir/'gen.ml.data.log' )
     print_fn = get_print_func( lg.logger )
-    print_fn(f'File path: {filepath}')
-    print_fn(f'\n{pformat(args)}')
+    print_fn( f'File path: {filepath}' )
+    print_fn( f'\n{pformat(args)}' )
     
     print_fn('\nDocking files  {}'.format( scores_dir ))
     print_fn('Features       {}'.format( fea_dir ))
     print_fn('Outdir         {}'.format( outdir ))
 
+
+    # ========================================================
+    # Get the samples (by ID)
+    # --------------------------
     # Glob docking file names
     file_pattern = '*4col.csv'
-    files = sorted(scores_dir.glob(file_pattern))
+    trg_files = sorted(scores_dir.glob(file_pattern))
+
+
+    # ========================================================
+    # Get the samples (by ID)
+    # --------------------------
+
+# def dump_single_trg(fpath, meta_cols=['Inchi-key', 'TITLE', 'SMILES'],
+#                     score_name='reg', q_cls=0.025, print_fn=print,
+#                     n_samples=None, n_top=None, flatten=False,
+#                     frm=['parquet'], baseline=False, 
+#                     outdir=Path('out')):
+#     """ Dump docking scores of the specified target. """
+#     # Load docks
+#     dock = load_data(fpath)
+#     if dock.empty:
+#         print_fn('Empty file')
+#         return None
+
+#     trg_name = fpath.with_suffix('').name # TODO depends on dock file names
+
+#     # Some filtering
+#     dock = dock.rename(columns={'Chemgauss4': score_name}) # TODO Chemgauss4 might change in future
+#     dock = dock[ dock['TITLE'].notna() ].reset_index(drop=True) # drop TITLE==nan
+#     dock[score_name] = dock[score_name].map(lambda x: cast_to_float(x) ) # cast scores to float
+#     dock = dock[ dock[score_name].notna() ].reset_index(drop=True) # drop non-float
+#     dock[score_name] = abs( np.clip(dock[score_name], a_min=None, a_max=0) ) # conv scores to >=0 
+    
+#     # Start merging docks and features using only the necessary columns
+#     merger = ['TITLE', 'SMILES']
+#     aa = pd.merge(dock, fea_df[merger], how='inner', on=merger)
+#     aa = aa.sort_values('reg', ascending=False).reset_index(drop=True)
+
+
+#     # meta_cols = set(meta_cols).intersection(set(dock.columns.tolist()))
+#     # meta_cols = [i for i in meta_cols]
+
+#     # # cols = [trg_name] + meta_cols
+#     # dd_trg = rsp[ cols ]; del rsp
+
+#     # # Drop NaN scores
+#     # dd_trg = dd_trg[ ~dd_trg[trg_name].isna() ].reset_index(drop=True)
+
+#     # # Rename the scores col
+#     # dd_trg = dd_trg.rename( columns={trg_name: 'dock'} )
+#     # dd_trg[score_name] = dd_trg['dock']
+
+#     # # Re-org cols
+#     # first_cols = ['dock', score_name]
+#     # cols = first_cols + [i for i in dd_trg.columns.tolist() if i not in first_cols]
+#     # dd_trg = dd_trg[cols]
+
+#     # Transform scores to positive
+#     dd_trg[score_name] = abs( np.clip(dd_trg[score_name], a_min=None, a_max=0) )
+    
+#     # Save
+#     trg_outdir = outdir/f'DIR.ml.{trg_name}'
+#     outpath = trg_outdir/f'docks.df.{trg_name}.csv'
+#     os.makedirs(trg_outdir, exist_ok=True)
+#     dd_trg.to_csv(outpath, index=False)
+
+
+    # ========================================================
+    # TODO
+    # --------------------------
+
 
     # Load fea
     ID = 'TITLE'
@@ -368,10 +453,10 @@ def run(args):
 
     if par_jobs > 1:
         results = Parallel(n_jobs=par_jobs, verbose=20)(
-                delayed(gen_ml_df_new)(fpath=f, **kwargs) for f in files )
+                delayed(gen_ml_df_new)(fpath=f, **kwargs) for f in trg_files )
     else:
         results = [] # docking summary including ML baseline scores
-        for f in files:
+        for f in trg_files:
             res = gen_ml_df_new(fpath=f, **kwargs)
             results.append( res )
 
