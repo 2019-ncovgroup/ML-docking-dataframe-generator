@@ -1,20 +1,37 @@
 #!/bin/bash
 
-PROJ_DIR=/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator
-SCORES_DIR=$PROJ_DIR/data/raw/docking/V5.1/OZD
-FEA_DIR=$PROJ_DIR/data/raw/features/fea-subsets-hpc
-DRG_SET=OZD
-FEA_TYPE=descriptors
-JOBS=16
+# Example:
+# bash run.bash 
 
-echo "Scores   $SCORES_PATH"
-echo "Data dir $DATA_DIR"
+PROJ_DIR=/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator
+DRG_SET=OZD
+SCR_DIR=$PROJ_DIR/data/raw/docking/V5.1
+
+# FEA_DIR=$PROJ_DIR/data/raw/features/fea-subsets-hpc
+
+# FEA_TYPE="descriptors fps images"
+FEA_TYPE="descriptors"
+
+OUTDIR="$PROJ_DIR/out/test_hpc/"
+# JOBS=16
+JOBS=1
+
+echo "Drug set: $DRG_SET"
+echo "Scores:   $SCR_DIR"
+echo "Features: $FEA_TYPE"
 
 echo "Generate dataframes ..."
 python src/main_gen_dfs_v5dot1.py \
-    --scores_dir $SCORES_DIR \
-    --fea_dir $FEA_DIR \
     --drg_set $DRG_SET \
+    --scr_dir $SCR_DIR \
     --fea_type $FEA_TYPE \
-    --par_jobs $JOBS
+    --par_jobs $JOBS \
+    --baseline \
+    --outdir $OUTDIR
+
+    # --n_samples 20000 \
+    # --n_top 3000 \
+    # --flatten \
+
+    # --fea_dir $FEA_DIR \
 
