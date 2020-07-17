@@ -66,10 +66,10 @@ def parse_args(args):
     #                     help=f'Path to molecular features file (default: {FEA_DIR}).')
     parser.add_argument('--fea_type',
                         type=str,
-                        default=FEA_TYPE,
+                        default=['descriptors'],
                         nargs='+',
                         choices=['descriptors', 'images', 'fps'],
-                        help=f'Feature type (default: descriptors).')
+                        help='Feature type (default: descriptors).')
     parser.add_argument('-od', '--outdir',
                         type=str,
                         default=None,
@@ -265,7 +265,7 @@ def gen_ml_data(fpath,
         q_cls = 1.0 - q_cls
     cls_th = dock[score_name].quantile(q=q_cls)
     res['cls_th'] = cls_th
-    print_fn('Quantile score (q_cls={:.3f}): {:.3f}'.format( q_cls, cls_th ))
+    print_fn('Quantile score (q_cls={:.3f}): {:.3f}'.format(q_cls, cls_th))
 
     # Generate a classification target col
     if dock[score_name].min() >= 0:  # if scores were transformed to >=0
@@ -403,7 +403,7 @@ def gen_ml_data(fpath,
                     ml_df, fea_list=[fea_prfx], fea_sep=fea_sep)
                 meta_cols = ['Inchi-key', 'SMILES', 'TITLE', 'CAT', 'reg', 'cls']
                 cols = meta_cols + fea_cols
-                ml_df = ml_df[ cols ]
+                ml_df = ml_df[cols]
                 print_fn('fps (ecfp2): {}'.format(ml_df.shape))
 
                 # Save
