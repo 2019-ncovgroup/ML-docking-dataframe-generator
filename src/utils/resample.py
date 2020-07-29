@@ -3,15 +3,14 @@ import pandas as pd
 
 
 def flatten_dist(df, n, score_name):
-    """ Resample the input df to obtain n samples. Resample such that the
-    output df_out has a more flatten (uniform) distribution of values in
-    score_name.
+    """ Resample the input df to obtain n samples. Resample such that df_out
+    has a more flatten (uniform) distribution of values in col score_name.
     Args:
-        df : input df
-        n : number of samples to sample from df
-        score_name : col name of the vector to resample
+        df: input df
+        n: number of samples to sample from df
+        score_name: col name of the vector to resample
     Returns:
-        df_out : resampled df
+        df_out: resampled df
     """
     df = df.sort_values(score_name, ascending=False).reset_index(drop=True)
 
@@ -27,7 +26,7 @@ def flatten_dist(df, n, score_name):
     bn = df.groupby(['bin']).agg({'count': sum}).reset_index()
     bn = bn.sort_values('count').reset_index(drop=True)
 
-    # These params are adjusted
+    # These vars are adjusted
     n_bins = len(bn)  # the actual number of bins
     n_per_bin = int(n / n_bins)  # samples per bin
 
@@ -37,9 +36,9 @@ def flatten_dist(df, n, score_name):
         b = bn.loc[r, 'bin']    # the bin (interval)
         c = bn.loc[r, 'count']  # count of samples in the bin
         if c == 0:
-            n_ = n_ # same since we didn't collect samples
-            n_bins = n_bins - 1 # less bins by 1
-            n_per_bin = int(n_ / n_bins) # update ratio
+            n_ = n_  # same since we didn't collect samples
+            n_bins = n_bins - 1  # less bins by 1
+            n_per_bin = int(n_ / n_bins)  # update ratio
 
         elif n_per_bin > c:
             idx = df.index.values[ df['bin'] == b ]
@@ -48,7 +47,7 @@ def flatten_dist(df, n, score_name):
 
             n_ = n_ - len(idx)   # less samples left
             n_bins = n_bins - 1  # less bins by 1
-            n_per_bin = int(n_ / n_bins) # update ratio
+            n_per_bin = int(n_ / n_bins)  # update ratio
 
         else:
             idx = df.index.values[ df['bin'] == b ]

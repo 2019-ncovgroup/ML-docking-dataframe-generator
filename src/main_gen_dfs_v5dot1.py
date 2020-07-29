@@ -36,12 +36,9 @@ DRG_SET = 'OZD'
 
 # Docking
 SCR_DIR = filepath/'../data/raw/docking/V5.1'
-# SCR_DIR = SCR_DIR/DRG_SET
 
 # Features
 FEA_DIR = Path(filepath, '../data/raw/features/fea-subsets-hpc').resolve()
-FEA_TYPE = 'descriptors'
-meta_cols = ['Inchi-key', 'TITLE', 'SMILES']
 
 # Global outdir
 GOUT = filepath/'../out'
@@ -75,10 +72,10 @@ def parse_args(args):
                         default=None,
                         help=f'Output dir (default: {GOUT}/<batch_name>).')
 
-    parser.add_argument('-f', '--fea_list',
-                        type=str,
-                        default=['dd'], nargs='+',
-                        help='Prefix of feature column names (default: dd).')
+    # parser.add_argument('-f', '--fea_list',
+    #                     type=str,
+    #                     default=['dd'], nargs='+',
+    #                     help='Prefix of feature column names (default: dd).')
     parser.add_argument('--fea_sep',
                         type=str,
                         default=['_'],
@@ -162,20 +159,23 @@ def gen_ml_data(fpath,
     This func was specifically created to process the new LARGE DOE-MD datasets
     with ZINC drugs that contains >6M molecules.
     Args:
-        fpath : path to load docking scores file
-        fea_df : df with features
-        meta_cols : metadata columns to include in the dataframe
-        score_name : rename the docking score col with score_name
-        q_cls : quantile value to compute along the docking scores to generate the 'cls' col
-        bin_th : threshold value of docking score to generate the 'binner' col
-        baseline : whether to compute ML baseline scores
-        n_samples : total number of samples in the final ml_df
-        n_top : keep this number of top-most dockers
+        fpath: path to load docking scores file
+        fea_df: df with features
+        meta_cols: metadata columns to include in the dataframe
+        score_name: rename the docking score col with score_name
+        q_cls: quantile value to compute along the docking scores to generate the 'cls' col
+        bin_th: threshold value of docking score to generate the 'binner' col
+        baseline: whether to compute ML baseline scores
+        n_samples: total number of samples in the final ml_df
+        n_top: keep this number of top-most dockers
+        flatten: if True, extract dock scores such that the final histogram of
+                 scores is more uniform.
+                 TODO: at this point, this is used only if n_samples is not None.
 
     Returns:
-        ml_df : the ML dataframe
+        ml_df: the ML dataframe
     """
-    print_fn(f'\nProcessing {fpath.name} ...')
+    print_fn(f'\nProcess {fpath.name} ...')
     res = {}
     trg_name = fpath.with_suffix('').name  # note! depends on dock file names
     res['target'] = trg_name
@@ -193,6 +193,18 @@ def gen_ml_data(fpath,
     dock[score_name] = dock[score_name].map(lambda x: cast_to_float(x) )  # cast scores to float
     dock = dock[ dock[score_name].notna() ].reset_index(drop=True)  # drop non-float
     dock[score_name] = abs( np.clip(dock[score_name], a_min=None, a_max=0) )  # convert and bound to >=0
+    print_fn('dock: {}'.format(dock.shape))
+
+    # Plot histogram of all scores
+    outfigs_all = outfigs/'all'
+    os.makedirs(outfigs_all, exist_ok=True)
+    fig, ax = plt.subplots()
+    ax.hist(dock[score_name], bins=50, facecolor='b', alpha=0.7);
+    ax.set_xlabel('Dock Score')
+    ax.set_ylabel('Count')
+    plt.grid(True)
+    plt.title(f'Samples {len(dock)}')
+    plt.savefig(outfigs_all/f'dock.dist.all.{trg_name}.png')
 
     # -----------------------------------------
     # Sample a subset of scores
@@ -206,13 +218,13 @@ def gen_ml_data(fpath,
 
     # new!
     # Extract samples that are common to all feature types
-    merger = ['TITLE', 'SMILES']
     aa = dock[ dock[ID].isin(common_samples) ].reset_index(drop=True)
-    aa = aa.sort_values('reg', ascending=False).reset_index(drop=True)
 
-    # Extract subset of samples based on docking scores
+    # Extract subset of samples
     if (n_samples is not None) and (n_top is not None):
         n_bot = n_samples - n_top
+
+        aa = aa.sort_values('reg', ascending=False).reset_index(drop=True)
         df_top = aa[:n_top].reset_index(drop=True)  # e.g. 100K
         df_rest = aa[n_top:].reset_index(drop=True)
 
@@ -224,14 +236,18 @@ def gen_ml_data(fpath,
         assert df_top.shape[1] == df_bot.shape[1], 'Num cols must be the same when concat.'
         aa = pd.concat([df_top, df_bot], axis=0).reset_index(drop=True)
 
-        # Plot scores histogram
+        # Plot histogram of sampled scores
+        outfigs_sampled = outfigs/'sampled'
+        os.makedirs(outfigs_sampled, exist_ok=True)
         fig, ax = plt.subplots()
         ax.hist(df_bot[score_name], bins=50, facecolor='b', alpha=0.7, label='The rest (balanced)');
         ax.hist(df_top[score_name], bins=50, facecolor='r', alpha=0.7, label='Top dockers');
+        ax.set_xlabel('Dock Score')
+        ax.set_ylabel('Count')
         plt.grid(True)
         plt.legend(loc='best', framealpha=0.5)
         plt.title(f'Samples {n_samples}; n_top {n_top}')
-        plt.savefig(outfigs/f'dock.dist.{trg_name}.png')
+        plt.savefig(outfigs_sampled/f'dock.dist.sampled.{trg_name}.png')
         del df_top, df_bot, df_rest
 
     elif (n_samples is not None):
@@ -240,19 +256,16 @@ def gen_ml_data(fpath,
         else:
             aa = aa.sample(n=n_samples, replace=False)
 
+        # Plot histogram of sampled scores
+        outfigs_sampled = outfigs/'sampled'
+        os.makedirs(outfigs_sampled, exist_ok=True)
         fig, ax = plt.subplots()
         ax.hist(aa[score_name], bins=50, facecolor='b', alpha=0.7);
+        ax.set_xlabel('Dock Score')
+        ax.set_ylabel('Count')
         plt.grid(True)
         plt.title(f'Samples {n_samples}')
-        plt.savefig(outfigs/f'dock.dist.{trg_name}.png')
-
-    else:
-        # Plot scores histogram
-        fig, ax = plt.subplots()
-        ax.hist(aa[score_name], bins=50, facecolor='b', alpha=0.7);
-        plt.grid(True)
-        plt.title(f'Samples {len(aa)}')
-        plt.savefig(outfigs/f'dock.dist.{trg_name}.png')
+        plt.savefig(outfigs_sampled/f'dock.dist.sampled.{trg_name}.png')
 
     dock = aa
     del aa
@@ -309,13 +322,19 @@ def gen_ml_data(fpath,
     #     dock = add_binner(dock, score_name=score_name, bin_th=bin_th)
 
     """
-    At this point, dock contains the filtered set of docking scores.
-    Now we need to extract the appropriate features for each feature set.
+    At this point, the drug names that we're interested in is in common_samples.
+    Also, the dock var contains the filtered set of docking scores.
+    Thus, we can further reduce the list of drug names of our intereset by
+    taking the intersect of drugs available in dock and the list common_samples.
+    Then, we need to extract the appropriate features for each feature set of
+    the remaining drugs.
     """
-    def load_and_extract(f, cols):
+    drug_names = set(common_samples).intersection(set(dock[ID].values))
+
+    def load_and_get_samples(f, cols, col_name):
         """ Load a subset of features and retain samples of interest. """
         df = pd.read_csv(f, names=cols)
-        df = df[ df[ID].isin(common_samples) ].reset_index(drop=True)
+        df = df[ df[col_name].isin(drug_names) ]
         return df
 
     def fps_to_nparr(x):
@@ -327,10 +346,14 @@ def gen_ml_data(fpath,
         DataStructs.ConvertToNumpyArray(x, arr)
         return arr
 
+    # Merge only on TITLE (when including also SMILES, there is a mismatch on
+    # certain samples; maybe smiles that come with features are canonicalied)
+    merger = ['TITLE']
+
     for fea_name in fea_type:
         if 'descriptors' == fea_name:
             files_path = Path(FEA_DIR, drg_set, fea_name).resolve()
-            fea_files = sorted( files_path.glob(f'{drg_set}-*.csv') )
+            fea_files = sorted(files_path.glob(f'{drg_set}-*.csv'))
 
             if len(fea_files) > 0:
                 fea_prfx = 'dd'
@@ -338,11 +361,17 @@ def gen_ml_data(fpath,
                 fea_names = [c.strip() for c in fea_names]  # clean names
                 fea_names = [fea_prfx+fea_sep+str(c) for c in fea_names]  # prefix fea names
                 cols = ['CAT', 'TITLE', 'SMILES'] + fea_names
+                # cols = ['CAT', 'TITLE'] + fea_names
 
-                dfs = Parallel(n_jobs=16, verbose=10)(
-                    delayed(load_and_extract)(f, cols) for f in fea_files
+                dfs = Parallel(n_jobs=32, verbose=10)(
+                    delayed(load_and_get_samples)(f, cols, col_name=ID) for f in fea_files
                 )
-                fea_df = pd.concat(dfs, axis=0)
+                # dfs = []
+                # for f in fea_files:
+                #     df = load_and_get_samples(f, cols, col_name=ID)
+                #     dfs.append(df)
+                fea_df = pd.concat(dfs, axis=0).reset_index(drop=True)
+                fea_df.drop(columns='SMILES', inplace=True)
                 del dfs
 
                 # Merge scores with features
@@ -353,7 +382,7 @@ def gen_ml_data(fpath,
                 fea_cols = extract_subset_fea_col_names(ml_df, fea_list=[fea_prfx], fea_sep=fea_sep)
                 meta_cols = ['Inchi-key', 'SMILES', 'TITLE', 'CAT', 'reg', 'cls']
                 cols = meta_cols + fea_cols
-                ml_df = ml_df[ cols ]
+                ml_df = ml_df[cols]
                 print_fn('descriptors: {}'.format(ml_df.shape))
 
                 # Save
@@ -370,26 +399,27 @@ def gen_ml_data(fpath,
                 res['min'], res['max'] = ml_df[score_name].min(), ml_df[score_name].max()
                 del ml_df
 
-        if 'fps' == fea_name:
+        elif 'fps' == fea_name:
             files_path = Path(FEA_DIR, drg_set, fea_name).resolve()
-            fea_files = sorted( files_path.glob(f'{drg_set}-*.csv') )
+            fea_files = sorted(files_path.glob(f'{drg_set}-*.csv'))
 
             if len(fea_files) > 0:
                 fea_prfx = 'ecfp2'
-                cols = ['CAT', 'TITLE', 'SMILES', 'fps']
+                # cols = ['CAT', 'TITLE', 'SMILES', 'fps']
+                cols = ['CAT', 'TITLE', 'fps']
 
-                dfs = Parallel(n_jobs=16, verbose=10)(
-                    delayed(load_and_extract)(f, cols) for f in fea_files
+                dfs = Parallel(n_jobs=32, verbose=10)(
+                    delayed(load_and_get_samples)(f, cols, col_name=ID) for f in fea_files
                 )
                 fea_df = pd.concat(dfs, axis=0).reset_index(drop=True)
                 del dfs
 
-                aa = Parallel(n_jobs=16, verbose=10)(
+                aa = Parallel(n_jobs=32, verbose=10)(
                     delayed(fps_to_nparr)(x) for x in fea_df['fps'].values
                 )
-                fea_names = [fea_prfx+fea_sep+str(i+1) for i in range(len(aa[0]))] # prfx fea names
+                fea_names = [fea_prfx+fea_sep+str(i+1) for i in range(len(aa[0]))]  # prfx fea names
                 cols = ['CAT', 'TITLE', 'SMILES'] + fea_names
-                aa = pd.DataFrame( np.vstack(aa), columns=fea_names )
+                aa = pd.DataFrame(np.vstack(aa), columns=fea_names)
                 meta = fea_df.drop(columns='fps')
                 fea_df = pd.concat([meta, aa], axis=1)
                 del aa, meta
@@ -408,7 +438,7 @@ def gen_ml_data(fpath,
 
                 # Save
                 outpath = trg_outdir/f'ml.{trg_name}.{fea_name}'
-                ml_df.to_parquet(str(outpath)+'.parquet')
+                ml_df.to_parquet(str(outpath) + '.parquet')
 
                 # Compute baseline if specified
                 if baseline:
@@ -419,7 +449,8 @@ def gen_ml_data(fpath,
 
                 del ml_df
 
-        if 'images' == fea_name:
+        elif 'images' == fea_name:
+            # TODO
             pass
 
     # # Re-org cols
@@ -479,104 +510,105 @@ def run(args):
     # import pdb; pdb.set_trace()
     t0 = time()
 
-    drg_set = Path( args['drg_set'] )
-    scr_dir = Path( args['scr_dir'] ).resolve()
-    fea_type = args['fea_type']
-    # fea_list = args['fea_list']  # TODO: not sure if we need this
+    drg_set = Path(args.drg_set)
+    scr_dir = Path(args.scr_dir).resolve()
+    fea_type = args.fea_type
+    # fea_list = args.fea_list  # TODO: not sure if we need this
 
-    par_jobs = int( args['par_jobs'] )
+    par_jobs = int(args.par_jobs)
     assert par_jobs > 0, f"The arg 'par_jobs' must be int >0 (got {par_jobs})"
 
-    if args['outdir'] is not None:
-        outdir = Path( args['outdir'] ).resolve()
+    if args.outdir is not None:
+        outdir = Path(args.outdir).resolve()
     else:
         batch_name = scr_dir.parent.name
-        outdir = Path( GOUT/batch_name ).resolve()
+        outdir = Path(GOUT, batch_name).resolve()
 
     outfigs = outdir/'figs'
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(outfigs, exist_ok=True)
-    args['outdir'] = outdir
 
     # Logger
-    lg = Logger( outdir/'gen.ml.data.log' )
-    print_fn = get_print_func( lg.logger )
-    print_fn( f'File path: {filepath}' )
-    print_fn( f'\n{pformat(args)}' )
+    lg = Logger(outdir/'gen.ml.data.log')
+    print_fn = get_print_func(lg.logger)
+    print_fn(f'File path: {filepath}')
+    print_fn(f'\n{pformat(vars(args))}')
 
-    print_fn('\nDocking files  {}'.format( scr_dir ))
-    print_fn('Features dir   {}'.format( FEA_DIR ))
-    print_fn('Outdir         {}'.format( outdir ))
+    print_fn(f'\nDocking files  {scr_dir}')
+    print_fn(f'Features dir   {FEA_DIR}')
+    print_fn(f'Outdir         {outdir}')
 
     # ========================================================
     # Get (glob) the docking files
     # ----------------------------
     scr_dir = Path(scr_dir, drg_set).resolve()
     scr_file_pattern = '*4col.csv'
-    scr_files = sorted( scr_dir.glob(scr_file_pattern) )
+    scr_files = sorted(scr_dir.glob(scr_file_pattern))
     # scr_files = scr_files[:2]
 
     # ========================================================
     # Get the common samples (by ID)
     # ------------------------------
     """
-    For each feature type (descriptors, fps, images), obtain the
-    list drug names for which the features were calcualted. Also, get
-    the intersect of drugs across the feature types.
+    For each feature type (descriptors, fps, images), obtain the list
+    of drug names for which the features are available. Also, get the
+    intersect of drugs names across the feature types. This is required
+    for multimodal learning (we want to make sure that we have all the
+    feature types for a drug).
     """
-    import pdb; pdb.set_trace()
-    N = 7
+    def load_and_get_names(f, cols, col_name):
+        """
+        Load a file (f) that contains a subset of features and get drug names
+        from a col col_name.
+        """
+        df = pd.read_csv(f, names=cols, usecols=[0, 1, 2])
+        return df[col_name].values.tolist()
+
+    # N = 7
+    N = None
     ID = 'TITLE'
     for fea_name in fea_type:
         if 'descriptors' == fea_name:
             files_path = Path(FEA_DIR, drg_set, fea_name).resolve()
-            fea_files = sorted( files_path.glob(f'{drg_set}-*.csv') )
+            fea_files = sorted(files_path.glob(f'{drg_set}-*.csv'))
 
             if len(fea_files) > 0:
                 cols = ['CAT', 'TITLE', 'SMILES']
-                id_names = []
-                # smiles = []
 
-                for i, f in enumerate(fea_files[:N]):
-                    if (i+1) % 100 == 0:
-                        print(f'Load {i+1} ...')
-                    df = pd.read_csv( fea_files[i], names=cols, usecols=[0,1,2] )
-                    id_names.extend( df[ID].values )
-                    # smiles.extend( df['SMILES'].values )
+                # Returns list of list (of drug names)
+                id_names = Parallel(n_jobs=32, verbose=10)(
+                    delayed(load_and_get_names)(f, cols, col_name=ID) for f in fea_files[:N]
+                )
 
+                # Flatten the list of lists
+                id_names = [item for sublit in id_names for item in sublit]
                 dd_names = set(id_names)
                 del id_names
-                # dd_smiles = set(smiles)
-                # del id_names, smiles
 
         if 'fps' == fea_name:
             files_path = Path(FEA_DIR, drg_set, fea_name).resolve()
             fea_files = sorted( files_path.glob(f'{drg_set}-*.csv') )
 
             if len(fea_files) > 0:
-                cols = ['CAT', 'TITLE', 'SMILES', 'fps']
-                id_names = []
-                # smiles = []
+                cols = ['CAT', 'TITLE', 'SMILES']
 
-                for i, f in enumerate(fea_files[:N]):
-                    if (i+1) % 100 == 0:
-                        print(f'Load {i+1} ...')
-                    df = pd.read_csv( fea_files[i], names=cols )
-                    id_names.extend( df[ID].values )
-                    # smiles.extend( df['SMILES'].values )
+                # Returns list of list (of drug names)
+                id_names = Parallel(n_jobs=32, verbose=10)(
+                    delayed(load_and_get_names)(f, cols, col_name=ID) for f in fea_files[:N]
+                )
 
+                # Flatten the list of lists
+                id_names = [item for sublit in id_names for item in sublit]
                 fps_names = set(id_names)
                 del id_names
-                # fps_smiles = set(smiles)
-                # del id_names, smiles
 
         if 'images' == fea_name:
+            # TODO: haven't finished testing this!
             files_path = Path(FEA_DIR, drg_set, fea_name).resolve()
-            fea_files = sorted( files_path.glob(f'{drg_set}-*.pkl') )
+            fea_files = sorted(files_path.glob(f'{drg_set}-*.pkl'))
 
             if len(fea_files) > 0:
                 id_names = []
-                # smiles = []
 
                 for i, f in enumerate(fea_files[:N]):
                     if (i+1) % 100 == 0:
@@ -589,12 +621,9 @@ def run(args):
                         continue
                     id_names.extend( tmp )
                     tmp = [item[2] for item in imgs]
-                    # smiles.extend( df['SMILES'].values )
 
                 img_names = set(id_names)
                 del id_names
-                # img_smiles = set(smiles)
-                # del id_names, smiles
 
     # Union of TITLE names across all features types
     all_names = []
@@ -603,8 +632,8 @@ def run(args):
     if 'fps' in fea_type:
         all_names.extend(list(fps_names))
     if 'images' in fea_type:
-        all_names.extend( list(img_names) )
-    print(len(set(all_names)))
+        all_names.extend(list(img_names))
+    print_fn(f'Union of titles across all feature types: {len(set(all_names))}')
 
     # Intersect of TITLE names across all features types
     common_names = dd_names
@@ -612,13 +641,13 @@ def run(args):
         common_names.intersection(fps_names)
     if 'images' in fea_type:
         common_names.intersection(img_names)
-    print(len(set(common_names)))
+    print_fn(f'Intersect of titles across all feature types: {len(set(common_names))}')
 
-    # Get TITLEs that are no available across all feature types
+    # Get TITLEs that are not available across all feature types
     bb_names = list(set(all_names).difference(common_names))
     if len(bb_names) > 0:
-        # TODO
-        print('TODO: need to dump those TITLE!')
+        # TODO consider to dump these titles!
+        print_fn(f'Difference of titles across all feature types: {len(set(bb_names))}')
 
     # ========================================================
     kwargs = {'common_samples': common_names,
@@ -628,11 +657,11 @@ def run(args):
               'print_fn': print_fn,
               'outdir': outdir,
               'outfigs': outfigs,
-              'baseline': args['baseline'],
-              'n_samples': args['n_samples'],
-              'n_top': args['n_top'],
-              'frm': args['frm'],
-              'flatten': args['flatten'],
+              'baseline': args.baseline,
+              'n_samples': args.n_samples,
+              'n_top': args.n_top,
+              'frm': args.frm,
+              'flatten': args.flatten,
               }
 
     if par_jobs > 1:
@@ -642,23 +671,24 @@ def run(args):
         results = []  # dock summary including ML baseline scores
         for f in scr_files:
             res = gen_ml_data(fpath=f, **kwargs)
-            results.append( res )
+            results.append(res)
 
-    # TODO consider to generate baselines using ecfp features as well
     results = [r for r in results if r is not None]
     results = np.round(pd.DataFrame(results), decimals=3)
     results.sort_values('target').reset_index(drop=True)
-    results.to_csv( outdir/'dock.ml.baseline.csv', index=False )
+    results.to_csv(outdir/'dock.ml.baseline.csv', index=False)
 
     # ========================================================
-    print_fn('\nRuntime {:.2f} mins'.format( (time()-t0)/60 ))
+    if (time()-t0)//3600 > 0:
+        print_fn('\nRuntime: {:.1f} hrs'.format((time()-t0)/3600))
+    else:
+        print_fn('\nRuntime: {:.1f} min'.format((time()-t0)/60))
     print_fn('Done.')
     lg.kill_logger()
 
 
 def main(args):
     args = parse_args(args)
-    args = vars(args)
     run(args)
 
 
