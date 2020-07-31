@@ -186,25 +186,38 @@ def gen_ml_data(fpath,
         print_fn('Empty file')
         return None
 
+    def plot_hist_dock_scores(df, subdir_name, scoring_func='Chemgauss4'):
+        """ ... """
+        outfigs_dir = outfigs/subdir_name
+        os.makedirs(outfigs_dir, exist_ok=True)
+        fig, ax = plt.subplots()
+        ax.hist(df[score_name], bins=100, facecolor='b', alpha=0.7);
+        ax.set_xlabel(f'Docking Score ({scoring_func})')
+        ax.set_ylabel('Count')
+        plt.grid(True)
+        plt.title(f'{subdir_name}; Samples {len(df)}')
+        plt.tight_layout()
+        plt.savefig(outfigs_dir/f'dock.dist.{trg_name}.png')
+
     # Pre-proc the dock file
     ID = 'TITLE'
-    dock = dock.rename(columns={'Chemgauss4': score_name})  # note! Chemgauss4 might be different
+    scoring_func = 'Chemgauss4'
+    dock = dock.rename(columns={scoring_func: score_name})  # note! Chemgauss4 might be different
     dock = dock[ dock[ID].notna() ].reset_index(drop=True)  # drop TITLE==nan
     dock[score_name] = dock[score_name].map(lambda x: cast_to_float(x) )  # cast scores to float
     dock = dock[ dock[score_name].notna() ].reset_index(drop=True)  # drop non-float
-    dock[score_name] = abs( np.clip(dock[score_name], a_min=None, a_max=0) )  # convert and bound to >=0
+
+    # Plot histogram of all (raw) scores
+    plot_hist_dock_scores(dock, subdir_name='all.raw',
+                          scoring_func=scoring_func)
+
+    # Convert and bound scores to >=0
+    dock[score_name] = abs( np.clip(dock[score_name], a_min=None, a_max=0) )
     print_fn('dock: {}'.format(dock.shape))
 
-    # Plot histogram of all scores
-    outfigs_all = outfigs/'all'
-    os.makedirs(outfigs_all, exist_ok=True)
-    fig, ax = plt.subplots()
-    ax.hist(dock[score_name], bins=50, facecolor='b', alpha=0.7);
-    ax.set_xlabel('Dock Score')
-    ax.set_ylabel('Count')
-    plt.grid(True)
-    plt.title(f'Samples {len(dock)}')
-    plt.savefig(outfigs_all/f'dock.dist.all.{trg_name}.png')
+    # Plot histogram of all (transformed) scores
+    plot_hist_dock_scores(dock, subdir_name='all.transformed',
+                          scoring_func=scoring_func)
 
     # -----------------------------------------
     # Sample a subset of scores
@@ -237,17 +250,17 @@ def gen_ml_data(fpath,
         aa = pd.concat([df_top, df_bot], axis=0).reset_index(drop=True)
 
         # Plot histogram of sampled scores
-        outfigs_sampled = outfigs/'sampled'
-        os.makedirs(outfigs_sampled, exist_ok=True)
+        outfigs_dir = outfigs/'sampled.transformed'
+        os.makedirs(outfigs_dir, exist_ok=True)
         fig, ax = plt.subplots()
-        ax.hist(df_bot[score_name], bins=50, facecolor='b', alpha=0.7, label='The rest (balanced)');
-        ax.hist(df_top[score_name], bins=50, facecolor='r', alpha=0.7, label='Top dockers');
-        ax.set_xlabel('Dock Score')
+        ax.hist(df_top[score_name], bins=100, facecolor='r', alpha=0.7, label='Top 10K Docking Ligands');
+        ax.hist(df_bot[score_name], bins=100, facecolor='b', alpha=0.7, label='Other Ligands (balanced)');
+        ax.set_xlabel(f'Docking Score ({scoring_func})')
         ax.set_ylabel('Count')
         plt.grid(True)
         plt.legend(loc='best', framealpha=0.5)
-        plt.title(f'Samples {n_samples}; n_top {n_top}')
-        plt.savefig(outfigs_sampled/f'dock.dist.sampled.{trg_name}.png')
+        plt.title(f'sampled.transformed; Samples {n_samples}; n_top {n_top}')
+        plt.savefig(outfigs_dir/f'dock.dist.{trg_name}.png', dpi=150)
         del df_top, df_bot, df_rest
 
     elif (n_samples is not None):
@@ -256,16 +269,8 @@ def gen_ml_data(fpath,
         else:
             aa = aa.sample(n=n_samples, replace=False)
 
-        # Plot histogram of sampled scores
-        outfigs_sampled = outfigs/'sampled'
-        os.makedirs(outfigs_sampled, exist_ok=True)
-        fig, ax = plt.subplots()
-        ax.hist(aa[score_name], bins=50, facecolor='b', alpha=0.7);
-        ax.set_xlabel('Dock Score')
-        ax.set_ylabel('Count')
-        plt.grid(True)
-        plt.title(f'Samples {n_samples}')
-        plt.savefig(outfigs_sampled/f'dock.dist.sampled.{trg_name}.png')
+        plot_hist_dock_scores(dock, subdir_name='sampled.transformed',
+                              scoring_func=scoring_func)
 
     dock = aa
     del aa
