@@ -3,53 +3,66 @@
 # Example:
 # bash scripts/run.bash 
 
-PROJ_DIR=/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator
-DRG_SET=OZD
-SCR_DIR=$PROJ_DIR/data/raw/docking/V5.1
+proj_dir=/vol/ml/apartin/projects/covid-19/ML-docking-dataframe-generator
 
-# FEA_TYPE="descriptors fps images"
-# FEA_TYPE="descriptors fps"
-# FEA_TYPE="fps"
-# FEA_TYPE="descriptors"
+# Data version
+# ver="V5.1"
+ver="V7.0"
 
-# sampling=random
-sampling=flatten
+# Drug set
+drg_set=OZD
+# drg_set=ORD
+
+# Path docking scores
+# scr_dir=$proj_dir/data/raw/docking/$ver
+scr_dir=$proj_dir/data/raw/raw_data/$ver
+
+# fea_type="descriptors fps images"
+# fea_type="descriptors fps"
+# fea_type="fps"
+# fea_type="descriptors"
+
+# sampling=None
+sampling=random
+# sampling=flatten
 
 # 100K
 n_samples=100000
-OUTDIR="$PROJ_DIR/out/V5.1-100K-$sampling-dd-fps/"
+outdir="$proj_dir/out/$ver-100K-$sampling"
 
 # 1M
 # n_samples=1000000
-# OUTDIR="$PROJ_DIR/out/V5.1-1M-$sampling-dd-fps/"
+# outdir="$proj_dir/out/$ver-1M-$sampling"
 
 # 2M
 # n_samples=2000000
-# OUTDIR="$PROJ_DIR/out/V5.1-2M-$sampling-dd-fps/"
+# outdir="$proj_dir/out/$ver-2M-$sampling"
 
-# JOBS=3
-JOBS=1
+# jobs=3
+jobs=1
 
-echo "Drug set: $DRG_SET"
-echo "Scores:   $SCR_DIR"
-echo "Features: $FEA_TYPE"
+echo "Drug set: $drg_set"
+echo "Scores:   $scr_dir"
+echo "Features: $fea_type"
 
-DD_FPATH=$PROJ_DIR/data/raw/features/fea-agg-from-hpc/$DRG_SET/descriptors.mordred.parquet
-FPS_FPATH=$PROJ_DIR/data/raw/features/fea-agg-from-hpc/$DRG_SET/fps.ecfp2.parquet
+dd_fpath=$proj_dir/data/raw/features/fea-agg-from-hpc/$drg_set/descriptors.mordred.parquet
+# fps_fpath=$proj_dir/data/raw/features/fea-agg-from-hpc/$drg_set/fps.ecfp2.parquet
+fps_fpath=none
 
 # ----------------------
 #   Subset
 # ----------------------
 echo "Generate dataframes ..."
 python src/main_gen_dfs_v5dot1.py \
-    --drg_set $DRG_SET \
-    --scr_dir $SCR_DIR \
-    --dd_fpath $DD_FPATH \
-    --fps_fpath $FPS_FPATH \
-    --par_jobs $JOBS \
+    --drg_set $drg_set \
+    --scr_dir $scr_dir \
+    --dd_fpath $dd_fpath \
+    --fps_fpath $fps_fpath \
+    --par_jobs $jobs \
     --n_samples $n_samples \
+    --sampling $sampling \
     --baseline \
-    --flatten \
-    --outdir $OUTDIR
+    --outdir $outdir
 
-    # --fea_type $FEA_TYPE \
+    # --flatten \
+    # --fea_type $fea_type \

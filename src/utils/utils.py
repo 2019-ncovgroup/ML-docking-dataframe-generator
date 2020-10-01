@@ -35,22 +35,22 @@ def verify_path(path):
     return path
 
 
-def load_data( datapath, file_format=None ):
-    datapath = verify_path( datapath )
+def load_data(datapath, file_format=None):
+    datapath = verify_path(datapath)
     if file_format is None:
         file_format = str(datapath).split('.')[-1]
 
-    if file_format=='parquet':
-        data = pd.read_parquet( datapath ) 
-    elif file_format=='hdf5':
-        data = pd.read_hdf5( datapath ) 
-    elif file_format=='csv':
-        data = pd.read_csv( datapath ) 
-    elif file_format=='pkl':
-        data = pickle.load( open(datapath, 'rb') )
+    if file_format == 'parquet':
+        data = pd.read_parquet(datapath)
+    elif file_format == 'hdf5':
+        data = pd.read_hdf5(datapath)
+    elif file_format == 'csv':
+        data = pd.read_csv(datapath)
+    elif file_format == 'pkl':
+        data = pickle.load(open(datapath, 'rb'))
     else:
         try:
-            data = pd.read_csv( datapath ) 
+            data = pd.read_csv(datapath)
         except:
             print('Cannot load file', datapath)
     return data
@@ -93,8 +93,8 @@ def dump_dict(dct, outpath='./dict.txt'):
 def get_print_func(logger=None):
     """ Returns the python 'print' function if logger is None. Othersiwe, returns logger.info. """
     return print if logger is None else logger.info
-    
-    
+
+
 def cast_to_float(x, float_format=np.float64):
     """ Cast values to float, and return nan if unsuccessful. """
     try:
@@ -103,6 +103,3 @@ def cast_to_float(x, float_format=np.float64):
         print('Could not cast the value to numeric: {}'.format(x))
         x = np.nan
     return x
-
-
-

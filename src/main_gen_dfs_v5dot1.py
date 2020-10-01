@@ -51,7 +51,7 @@ def parse_args(args):
     parser.add_argument('--drg_set',
                         type=str,
                         default=DRG_SET,
-                        choices=['OZD'],
+                        choices=['OZD', 'ORD'],
                         help=f'Drug set (default: {DRG_SET}).')
     parser.add_argument('-sd', '--scr_dir',
                         type=str,
@@ -96,9 +96,13 @@ def parse_args(args):
                         default=None,
                         help='Number of top-most docking scores. This is irrelevant if n_samples \
                         was not specified (default: None).')
-    parser.add_argument('--flatten',
-                        action='store_true',
-                        help='Flatten the distribution of docking scores (default: False).')
+    # parser.add_argument('--flatten',
+    #                     action='store_true',
+    #                     help='Flatten the distribution of docking scores (default: False).')
+    parser.add_argument('--sampling',
+                        default=None,
+                        choices=[None, 'random', 'flatten'],
+                        help='Sampling approach of scores (default: None).')
 
     parser.add_argument('--baseline',
                         action='store_true',
@@ -174,8 +178,8 @@ def plot_hist_dock_scores(df, outfigs, subdir_name, trg_name,
     ax.hist(df[score_name], bins=100, facecolor='b', alpha=0.7);
     ax.set_xlabel(f'Docking Score ({scoring_func})')
     ax.set_ylabel('Count')
-    plt.grid(True)
     plt.title(f'{subdir_name}; Samples {len(df)}')
+    plt.grid(True)
     plt.tight_layout()
     plt.savefig(outfigs_dir/f'dock.dist.{trg_name}.png')
 
@@ -203,7 +207,7 @@ def gen_ml_data(fpath,
                 img_fea=None,
                 fea_sep='_',
                 score_name='reg',
-                n_samples=None, n_top=None, flatten=False,
+                n_samples=None, n_top=None, sampling=None,
                 q_cls=0.025,
                 binner=False, bin_th=2.0,
                 baseline=False,
@@ -276,10 +280,16 @@ def gen_ml_data(fpath,
         df_top = aa[:n_top].reset_index(drop=True)  # e.g. 100K
         df_rest = aa[n_top:].reset_index(drop=True)
 
-        if flatten:
+        # if flatten:
+        #     df_bot = flatten_dist(df=df_rest, n=n_bot, score_name=score_name)
+        # else:
+        #     df_bot = df_rest.sample(n=n_bot, replace=False)
+        if sampling == 'flatten':
             df_bot = flatten_dist(df=df_rest, n=n_bot, score_name=score_name)
-        else:
+        elif sampling == 'random':
             df_bot = df_rest.sample(n=n_bot, replace=False)
+        else:
+            raise ValueError("'sampling' arg must be specified.")
 
         assert df_top.shape[1] == df_bot.shape[1], 'Num cols must be the same when concat.'
         aa = pd.concat([df_top, df_bot], axis=0).reset_index(drop=True)
@@ -299,10 +309,16 @@ def gen_ml_data(fpath,
         del df_top, df_bot, df_rest
 
     elif (n_samples is not None):
-        if flatten:
+        # if flatten:
+        #     aa = flatten_dist(df=aa, n=n_samples, score_name=score_name)
+        # else:
+        #     aa = aa.sample(n=n_samples, replace=False)
+        if sampling == 'flatten':
             aa = flatten_dist(df=aa, n=n_samples, score_name=score_name)
-        else:
+        elif sampling == 'random':
             aa = aa.sample(n=n_samples, replace=False)
+        else:
+            raise ValueError("'sampling' arg must be specified.")
 
         plot_hist_dock_scores(dock, outfigs=outfigs, subdir_name='sampled.transformed',
                               trg_name=trg_name, scoring_func=scoring_func)
@@ -328,22 +344,24 @@ def gen_ml_data(fpath,
     # print_fn('Ratio {:.2f}'.format( dd['dock_bin'].sum() / dd.shape[0] ))
 
     # Plot
-    # hist, bin_edges = np.histogram(dock[score_name], bins=bins)
-    # x = np.ones((10,)) * cls_th
-    # y = np.linspace(0, hist.max(), len(x))
+    hist, bin_edges = np.histogram(dock[score_name], bins=100)
+    x = np.ones((10,)) * cls_th
+    y = np.linspace(0, hist.max(), len(x))
 
-    # fig, ax = plt.subplots()
-    # plt.hist(dock[score_name], bins=bins, density=False, facecolor='b', alpha=0.5)
-    # plt.title(f'Scores clipped to 0: {trg_name}');
-    # plt.ylabel('Count'); plt.xlabel('Docking Score');
-    # plt.plot(x, y, 'r--', alpha=0.7, label=f'{q_cls}-th quantile')
-    # plt.grid(True)
-    # plt.savefig(outfigs/f'dock.score.{trg_name}.png')
+    fig, ax = plt.subplots()
+    plt.hist(dock[score_name], bins=200, density=False, facecolor='b', alpha=0.7)
+    plt.title(f'Scores clipped to 0: {trg_name}')
+    plt.xlabel(f'Docking Score ({scoring_func})')
+    plt.ylabel('Count')
+    plt.plot(x, y, 'm--', alpha=0.7, label=f'{q_cls}-th quantile')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(outfigs/f'dock.dist.cls.{trg_name}.png')
     # -----------------------------------------
 
     # Save dock scores
     cols = ['Inchi-key', 'SMILES', 'TITLE', 'reg', 'cls']
-    dock = dock[cols]
+    dock = dock[[c for c in cols if c in dock.columns]]
     trg_outdir = outdir/f'DIR.ml.{trg_name}'
     outpath = trg_outdir/f'docks.df.{trg_name}.csv'
     os.makedirs(trg_outdir, exist_ok=True)
@@ -379,7 +397,8 @@ def gen_ml_data(fpath,
             ml_df, fea_list=[fea_prfx], fea_sep=fea_sep)
         meta_cols = ['Inchi-key', 'SMILES', 'TITLE', 'CAT', 'reg', 'cls']
         cols = meta_cols + fea_cols
-        ml_df = ml_df[cols]
+        # ml_df = ml_df[cols]
+        ml_df = ml_df[[c for c in cols if c in ml_df.columns]]
         print_fn('{}: {}'.format(fea_name, ml_df.shape))
 
         # Save
@@ -397,11 +416,11 @@ def gen_ml_data(fpath,
 
     if dd_fea is not None:
         merge_dock_and_fea(dock, fea_df=dd_fea, fea_prfx='dd', fea_sep=fea_sep,
-                           merger=ID, fea_name='descriptors', baseline=False)
+                           merger=ID, fea_name='descriptors', baseline=baseline)
 
     if fps_fea is not None:
         merge_dock_and_fea(dock, fea_df=fps_fea, fea_prfx='ecfp2', fea_sep=fea_sep,
-                           merger=ID, fea_name='ecfp2', baseline=False)
+                           merger=ID, fea_name='ecfp2', baseline=baseline)
 
     if img_fea is not None:
         pass
@@ -412,7 +431,7 @@ def gen_ml_data(fpath,
 
 
 def run(args):
-    # import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
     t0 = time()
 
     drg_set = Path(args.drg_set)
@@ -448,7 +467,8 @@ def run(args):
     # Glob the docking files
     # ----------------------
     scr_dir = Path(scr_dir, drg_set).resolve()
-    scr_file_pattern = '*4col.csv'
+    # scr_file_pattern = '*4col.csv'
+    scr_file_pattern = '*sorted*csv'
     scr_files = sorted(scr_dir.glob(scr_file_pattern))
 
     # ss = ['ADRP_6W02_A_1_H',
@@ -470,23 +490,27 @@ def run(args):
     fps_names = None
     img_names = None
 
-    if args.dd_fpath is not None:
+    if (args.dd_fpath is not None) and (args.dd_fpath.lower() != 'none'):
         dd_fea = load_data(args.dd_fpath)
         dd_names = dd_fea[ID].tolist()
         dd_fea = dd_fea.drop(columns='SMILES')
+        # tmp = dd_fea.isna().sum(axis=0).sort_values(ascending=False)
+        dd_fea = dd_fea.fillna(0)
     else:
         dd_fea = None
         dd_names = None
 
-    if args.fps_fpath is not None:
+    if (args.fps_fpath is not None) and (args.fps_fpath.lower() != 'none'):
         fps_fea = load_data(args.fps_fpath)
         fps_names = fps_fea[ID].tolist()
         fps_fea = fps_fea.drop(columns='SMILES')
+        # tmp = fps_fea.isna().sum(axis=0).sort_values(ascending=False)
+        fps_fea = fps_fea.fillna(0)
     else:
         fps_fea = None
         fps_names = None
 
-    if args.img_fpath is not None:
+    if (args.img_fpath is not None) and (args.img_fpath.lower() != 'none'):
         # TODO
         pass
     else:
@@ -526,8 +550,10 @@ def run(args):
         print_fn(f'Difference of titles across all feature types: {len(set(bb_names))}')
 
     # Retain the common samples in fea dfs
-    dd_fea = dd_fea[dd_fea[ID].isin(common_names)]  # .reset_index(drop=True)
-    fps_fea = fps_fea[fps_fea[ID].isin(common_names)]  # .reset_index(drop=True)
+    if dd_fea is not None:
+        dd_fea = dd_fea[dd_fea[ID].isin(common_names)]  # .reset_index(drop=True)
+    if fps_fea is not None:
+        fps_fea = fps_fea[fps_fea[ID].isin(common_names)]  # .reset_index(drop=True)
 
     # ========================================================
     kwargs = {'common_samples': common_names,
@@ -542,7 +568,8 @@ def run(args):
               'baseline': args.baseline,
               'n_samples': args.n_samples,
               'n_top': args.n_top,
-              'flatten': args.flatten,
+              # 'flatten': args.flatten,
+              'sampling': args.sampling,
               }
 
     if par_jobs > 1:
