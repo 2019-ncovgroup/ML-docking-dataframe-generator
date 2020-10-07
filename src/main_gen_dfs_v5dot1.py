@@ -227,9 +227,9 @@ def gen_ml_data(fpath,
         score_name : rename the docking score col with score_name
         n_samples : total number of samples in the final ml_df
         n_top : keep this number of top-most dockers
-        flatten : if True, extract dock scores such that the final histogram of
-                 scores is more uniform.
-        q_cls : quantile value to compute along the docking scores to generate the 'cls' col
+        sampling : specify the method to use when sampling samples from df
+        q_cls : quantile value to compute along the docking scores to generate
+                the 'cls' col
         bin_th : threshold value of docking score to generate the 'binner' col
         binner : add binner column
         baseline : whether to compute ML baseline scores
@@ -247,6 +247,10 @@ def gen_ml_data(fpath,
     if dock.empty:
         print_fn('Empty file')
         return None
+
+    if dock.shape[0] <= n_samples:
+        print_fn("n_samples is larger than len(dock), skip this receptor")
+        return res
 
     # Pre-proc the dock file
     ID = 'TITLE'

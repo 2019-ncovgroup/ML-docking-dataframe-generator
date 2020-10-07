@@ -12,6 +12,7 @@ def flatten_dist(df, n, score_name):
     Returns:
         df_out: resampled df
     """
+    assert df.shape[0] >= n, "n (# of rows to sample) must be <= than len(df)"
     df = df.sort_values(score_name, ascending=False).reset_index(drop=True)
 
     # Create bins

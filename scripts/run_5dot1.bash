@@ -23,18 +23,20 @@ scr_dir=$proj_dir/data/raw/raw_data/$ver
 # fea_type="descriptors"
 
 # sampling=None
-sampling=random
-# sampling=flatten
+# sampling=random
+sampling=flatten
 
-# 100K
-n_samples=100000
-outdir="$proj_dir/out/$ver-100K-$sampling"
+n_top=10000
 
-# 1M
-# n_samples=1000000
-# outdir="$proj_dir/out/$ver-1M-$sampling"
+# 100K dataset
+# n_samples=100000
+# outdir="$proj_dir/out/$ver-100K-$sampling"
 
-# 2M
+# 1M dataset
+n_samples=1000000
+outdir="$proj_dir/out/$ver-1M-$sampling"
+
+# 2M dataset
 # n_samples=2000000
 # outdir="$proj_dir/out/$ver-2M-$sampling"
 
@@ -60,6 +62,7 @@ python src/main_gen_dfs_v5dot1.py \
     --fps_fpath $fps_fpath \
     --par_jobs $jobs \
     --n_samples $n_samples \
+    --n_top $n_top \
     --sampling $sampling \
     --baseline \
     --outdir $outdir
