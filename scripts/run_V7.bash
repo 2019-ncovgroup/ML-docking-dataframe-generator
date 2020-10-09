@@ -55,7 +55,7 @@ fps_fpath=none
 #   Subset
 # ----------------------
 echo "Generate dataframes ..."
-python src/main_gen_dfs_v5dot1.py \
+python src/main_gen_dfs_V7.py \
     --drg_set $drg_set \
     --scr_dir $scr_dir \
     --dd_fpath $dd_fpath \
