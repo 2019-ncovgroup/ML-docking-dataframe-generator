@@ -51,7 +51,7 @@ def parse_args(args):
     parser.add_argument('--drg_set',
                         type=str,
                         default=DRG_SET,
-                        choices=['OZD', 'ORD'],
+                        choices=['OZD', 'ORD', 'MIX'],
                         help=f'Drug set (default: {DRG_SET}).')
     parser.add_argument('-sd', '--scr_dir',
                         type=str,
@@ -205,6 +205,7 @@ def gen_ml_data(fpath,
                 dd_fea=None,
                 fps_fea=None,
                 img_fea=None,
+                ID='TITLE',
                 fea_sep='_',
                 score_name='reg',
                 n_samples=None, n_top=None, sampling=None,
@@ -248,12 +249,12 @@ def gen_ml_data(fpath,
         print_fn('Empty file')
         return None
 
-    if dock.shape[0] <= n_samples:
+    if (n_samples is not None) and (dock.shape[0] <= n_samples):
         print_fn("n_samples is larger than len(dock), skip this receptor")
         return res
 
     # Pre-proc the dock file
-    ID = 'TITLE'
+    ## ID = 'TITLE'
     scoring_func = 'Chemgauss4'
     dock = proc_dock_score(dock, ID=ID, score_name=score_name,
                            scoring_func=scoring_func)
@@ -443,6 +444,7 @@ def run(args):
     # fea_type = args.fea_type
 
     ID = 'TITLE'
+    # ID = 'SMILES'
 
     par_jobs = int(args.par_jobs)
     assert par_jobs > 0, f"The arg 'par_jobs' must be int >0 (got {par_jobs})"
@@ -464,15 +466,16 @@ def run(args):
     print_fn(f'\n{pformat(vars(args))}')
 
     print_fn(f'\nDocking files  {scr_dir}')
-    print_fn(f'Features dir   {FEA_DIR}')
+    # print_fn(f'Features dir   {FEA_DIR}')
     print_fn(f'Outdir         {outdir}')
 
     # ========================================================
     # Glob the docking files
     # ----------------------
     scr_dir = Path(scr_dir, drg_set).resolve()
-    # scr_file_pattern = '*4col.csv'
-    scr_file_pattern = '*sorted*csv'
+    ## scr_file_pattern = '*4col.csv'  # V5.1
+    ## scr_file_pattern = '*sorted*csv'  # V7.0
+    scr_file_pattern = 'rec_*3col.csv'  # Tom's receptors
     scr_files = sorted(scr_dir.glob(scr_file_pattern))
 
     # ss = ['ADRP_6W02_A_1_H',
@@ -566,6 +569,7 @@ def run(args):
               'dd_fea': dd_fea,
               'fps_fea': fps_fea,
               'img_fea': img_fea,
+              'ID': ID,
               'print_fn': print_fn,
               'outdir': outdir,
               'outfigs': outfigs,
